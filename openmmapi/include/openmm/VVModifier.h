@@ -22,45 +22,79 @@ namespace OpenMM {
          *
          * @param integrator
          */
-        VVModifier(VVIntegrator &integrator) {};
+        VVModifier(VVIntegrator &integrator):isThermostat(false), hasVelocityBias(false) {};
 
-        /**
-         * Get whether this modifier will modify force
-         */
-        virtual bool getModifyForce() = 0;
+        virtual void beforeFirstIntegration() = 0;
+        virtual void afterFirstIntegration() = 0;
+        virtual void beforeForceCalculation() = 0;
+        virtual void afterForceCalculation() = 0;
+        virtual void afterSecondIntegration() = 0;
 
-        /**
-         * Get whether this modifier will modify velocity
-         */
-        virtual bool getModifyVelocity() = 0;
+        const bool& getIsThermostat() const {
+            return isThermostat;
+        }
 
-        /**
-         * Get whether this modifier will modify position
-         */
-        virtual bool getModifyPosition() = 0;
+        void setIsThermostat(bool is){
+            isThermostat = is;
+        }
+
+        const bool& getHasVelocityBias() const {
+            return hasVelocityBias;
+        }
+
+        void setHasVelocityBias(bool has){
+            hasVelocityBias = has;
+        }
+
+    private:
+        bool isThermostat;
+        bool hasVelocityBias;
+    };
+
+    class DrudeNoseThermostatModifier: VVModifier {
+    public:
+        DrudeNoseThermostatModifier(VVIntegrator &integrator);
+
+        ~DrudeNoseThermostatModifier();
+
+        void beforeFirstIntegration();
+        void afterFirstIntegration();
+    };
+
+    class LangevinModifier: VVModifier {
+    public:
+        LangevinModifier(VVIntegrator &integrator);
+
+        ~LangevinModifier();
+
+        void afterForceCalculation();
     };
 
     class ElectricFieldModifier : VVModifier {
     public:
-        ElectricFieldModifier(VVIntegrator &integrator) : VVModifier(integrator) {
+        ElectricFieldModifier(VVIntegrator &integrator);
 
-        };
+        ~ElectricFieldModifier();
 
-        ~ElectricFieldModifier() {
+        void afterForceCalculation();
+    };
 
-        };
+    class ImageChargeModifier: VVModifier {
+    public:
+        ImageChargeModifier(VVIntegrator &integrator);
 
-        bool getModifyForce() const {
-            return true;
-        }
+        ~ImageChargeModifier();
 
-        bool getModifyVelocity() const {
-            return false;
-        }
+        void afterFirstIntegration();
+    };
 
-        bool getModifyPosition() const {
-            return false;
-        }
+    class PeriodicPerturbationModifier: VVModifier {
+    public:
+        PeriodicPerturbationModifier(VVIntegrator &integrator);
+
+        ~PeriodicPerturbationModifier();
+
+        void afterForceCalculation();
     };
 
 } // namespace OpenMM
