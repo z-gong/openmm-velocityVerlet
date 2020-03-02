@@ -192,7 +192,7 @@ private:
          * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
          * @param force      the DrudeForce to get particle parameters from
          */
-        void initialize(const System &system, const VVIntegrator &integrator, const DrudeForce &force, const Kernel& vvKernel);
+        void initialize(const System &system, const VVIntegrator &integrator, const DrudeForce &force, Kernel vvKernel);
 
         /**
          * Calculate the Langevin force for particles thermolized by Langevin dynamics
@@ -265,7 +265,7 @@ private:
          * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
          * @param force      the DrudeForce to get particle parameters from
          */
-        void initialize(const System& system, const VVIntegrator& integrator, const Kernel& vvKernel);
+        void initialize(const System& system, const VVIntegrator& integrator, Kernel vvKernel);
         /**
          * Execute the kernel.
          *
@@ -297,7 +297,7 @@ private:
          * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
          * @param force      the DrudeForce to get particle parameters from
          */
-        void initialize(const System& system, const VVIntegrator& integrator, const Kernel& vvKernel);
+        void initialize(const System& system, const VVIntegrator& integrator, Kernel vvKernel);
         /**
          * Apply the periodic perturbation force for viscosity calculation
          * @param context

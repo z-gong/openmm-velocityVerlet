@@ -652,7 +652,7 @@ CudaModifyDrudeLangevinKernel::~CudaModifyDrudeLangevinKernel() {
         delete pairParticlesLD;
 }
 
-void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVIntegrator &integrator, const DrudeForce &force, const Kernel& vvKernel) {
+void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVIntegrator &integrator, const DrudeForce &force, Kernel vvKernel) {
     vvStepKernel = vvKernel.getAs<CudaIntegrateVVStepKernel*>();
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
@@ -799,7 +799,7 @@ CudaModifyElectricFieldKernel::~CudaModifyElectricFieldKernel() {
         delete particlesElectrolyte;
 }
 
-void CudaModifyElectricFieldKernel::initialize(const System &system, const VVIntegrator &integrator, const Kernel& vvKernel) {
+void CudaModifyElectricFieldKernel::initialize(const System &system, const VVIntegrator &integrator, Kernel vvKernel) {
     vvStepKernel = vvKernel.getAs<CudaIntegrateVVStepKernel*>();
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
@@ -811,7 +811,7 @@ void CudaModifyElectricFieldKernel::initialize(const System &system, const VVInt
         particlesElectrolyte->upload(particlesElectrolyteVec);
 
     map<string, string> definesExtra;
-    definesExtra["NUM_ATOMS"] = cu.intToString(numAtoms);
+    definesExtra["NUM_ATOMS"] = cu.intToString(cu.getNumAtoms());
     definesExtra["PADDED_NUM_ATOMS"] = cu.intToString(cu.getPaddedNumAtoms());
     definesExtra["NUM_PARTICLES_ELECTROLYTE"] = cu.intToString(particlesElectrolyteVec.size());
     CUmodule moduleExtra = cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::electricField, definesExtra, "");
@@ -845,7 +845,7 @@ void CudaModifyElectricFieldKernel::applyElectricForce(ContextImpl& context, con
     cu.executeKernel(kernelApplyElectricForce, args1, particlesElectrolyte->getSize());
 }
 
-void CudaModifyPeriodicPerturbationKernel::initialize(const System &system, const VVIntegrator &integrator, const Kernel& vvKernel) {
+void CudaModifyPeriodicPerturbationKernel::initialize(const System &system, const VVIntegrator &integrator, Kernel vvKernel) {
     vvStepKernel = vvKernel.getAs<CudaIntegrateVVStepKernel*>();
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
