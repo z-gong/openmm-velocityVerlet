@@ -503,12 +503,13 @@ private:
     std::vector<int> particleResId;
     std::vector<double> residueMasses;
     std::vector<double> residueInvMasses;
-    Kernel nhKernel;
+    Kernel vvKernel, nhKernel;
     bool forcesAreValid;
 
     std::vector<int> particlesLD;
     double friction, drudeFriction;
     int randomNumberSeed;
+    Kernel ldKernel;
 
     // for constant voltage simulation with image charge method
     std::vector<std::pair<int, int> > imagePairs;
@@ -516,10 +517,11 @@ private:
     double mirrorLocation;
     double electricField;
     std::vector<int> particlesElectrolyte;
-    Kernel imgKernel;
+    Kernel imgKernel, efKernel;
 
     // for periodic perturbation viscosity calculation
     double cosAcceleration;
+    Kernel ppKernel;
 };
 
 } // namespace OpenMM

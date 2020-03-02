@@ -1,12 +1,3 @@
-/**
- * Reset extra force
- */
-
-extern "C" __global__ void resetExtraForce(real3 *__restrict__ forceExtra) {
-    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < NUM_ATOMS; i += blockDim.x * gridDim.x) {
-        forceExtra[i] = make_real3(0, 0, 0);
-    }
-}
 
 extern "C" __global__ void addExtraForceDrudeLangevin(const mixed4 *__restrict__ velm,
                                                  real3 *__restrict__ forceExtra,
@@ -65,18 +56,5 @@ extern "C" __global__ void addExtraForceDrudeLangevin(const mixed4 *__restrict__
 
         forceExtra[particles.x] += mass1fract * cmForce - relForce;
         forceExtra[particles.y] += mass2fract * cmForce + relForce;
-    }
-}
-
-extern "C" __global__ void addExtraForceElectricField(real4 *__restrict__ posq,
-                                                      real3 *__restrict__ forceExtra,
-                                                      const int *__restrict__ particlesElectrolyte,
-                                                      mixed efield,
-                                                      mixed fscale) {
-
-    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < NUM_PARTICLES_ELECTROLYTE; i += blockDim.x * gridDim.x) {
-        int index = particlesElectrolyte[i];
-        real charge = posq[index].w;
-        forceExtra[index].z += fscale * efield * charge;
     }
 }

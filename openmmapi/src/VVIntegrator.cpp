@@ -164,25 +164,53 @@ void VVIntegrator::initialize(ContextImpl& contextRef) {
         }
     }
 
+    // conflicts
+    if (!particlesLD.empty() && cosAcceleration != 0)
+        throw OpenMMException("Langevin thermostat and periodic perturbation shouldn't be used together");
+
     context = &contextRef;
     owner = &contextRef.getOwner();
-    nhKernel = context->getPlatform().createKernel(IntegrateVVStepKernel::Name(), contextRef);
-    nhKernel.getAs<IntegrateVVStepKernel>().initialize(contextRef.getSystem(), *this, *force);
+    vvKernel = context->getPlatform().createKernel(IntegrateVVStepKernel::Name(), contextRef);
+    vvKernel.getAs<IntegrateVVStepKernel>().initialize(contextRef.getSystem(), *this, *force);
+    if (!particlesNH.empty()) {
+        nhKernel = context->getPlatform().createKernel(ModifyDrudeNoseKernel::Name(), contextRef);
+        nhKernel.getAs<ModifyDrudeNoseKernel>().initialize(contextRef.getSystem(), *this, *force);
+    }
+    if (!particlesLD.empty()) {
+        ldKernel = context->getPlatform().createKernel(ModifyDrudeLangevinKernel::Name(), contextRef);
+        ldKernel.getAs<ModifyDrudeLangevinKernel>().initialize(contextRef.getSystem(), *this, *force, vvKernel);
+    }
     if (!particlesImage.empty()) {
         imgKernel = context->getPlatform().createKernel(ModifyImageChargeKernel::Name(), contextRef);
         imgKernel.getAs<ModifyImageChargeKernel>().initialize(contextRef.getSystem(), *this);
     }
+    if (!particlesElectrolyte.empty()){
+        efKernel = context->getPlatform().createKernel(ModifyElectricFieldKernel::Name(), contextRef);
+        efKernel.getAs<ModifyElectricFieldKernel>().initialize(contextRef.getSystem(), *this, vvKernel);
+    }
+    if (cosAcceleration!=0){
+        ppKernel = context->getPlatform().createKernel(ModifyPeriodicPerturbationKernel::Name(), contextRef);
+        ppKernel.getAs<ModifyPeriodicPerturbationKernel>().initialize(contextRef.getSystem(), *this, vvKernel);
+    }
 }
 
 void VVIntegrator::cleanup() {
+    vvKernel = Kernel();
     nhKernel = Kernel();
+    ldKernel = Kernel();
     imgKernel = Kernel();
+    efKernel = Kernel();
+    ppKernel = Kernel();
 }
 
 vector<string> VVIntegrator::getKernelNames() {
     std::vector<std::string> names;
     names.push_back(IntegrateVVStepKernel::Name());
+    names.push_back(ModifyDrudeNoseKernel::Name());
+    names.push_back(ModifyDrudeLangevinKernel::Name());
     names.push_back(ModifyImageChargeKernel::Name());
+    names.push_back(ModifyElectricFieldKernel::Name());
+    names.push_back(ModifyPeriodicPerturbationKernel::Name());
     return names;
 }
 
@@ -192,7 +220,7 @@ double VVIntegrator::computeKineticEnergy() {
      * So I must mark the force as invalid
      */
     forcesAreValid = false;
-    return nhKernel.getAs<IntegrateVVStepKernel>().computeKineticEnergy(*context, *this);
+    return vvKernel.getAs<IntegrateVVStepKernel>().computeKineticEnergy(*context, *this);
 }
 
 void VVIntegrator::step(int steps) {
@@ -225,16 +253,16 @@ void VVIntegrator::step(int steps) {
         // First half velocity verlet integrate (half-step velocity and full-step position update)
         if (!particlesNH.empty()){
             if (cosAcceleration != 0){
-                nhKernel.getAs<IntegrateVVStepKernel>().calcPeriodicVelocityBias(*context, *this);
-                nhKernel.getAs<IntegrateVVStepKernel>().removePeriodicVelocityBias(*context, *this);
+                ppKernel.getAs<ModifyPeriodicPerturbationKernel>().calcVelocityBias(*context, *this);
+                ppKernel.getAs<ModifyPeriodicPerturbationKernel>().removeVelocityBias(*context, *this);
             }
-            nhKernel.getAs<IntegrateVVStepKernel>().propagateNHChain(*context, *this);
-            nhKernel.getAs<IntegrateVVStepKernel>().scaleVelocity(*context);
+            nhKernel.getAs<ModifyDrudeNoseKernel>().propagateNHChain(*context, *this);
+            nhKernel.getAs<ModifyDrudeNoseKernel>().scaleVelocity(*context);
             if (cosAcceleration != 0){
-                nhKernel.getAs<IntegrateVVStepKernel>().restorePeriodicVelocityBias(*context, *this);
+                ppKernel.getAs<ModifyPeriodicPerturbationKernel>().restoreVelocityBias(*context, *this);
             }
         }
-        nhKernel.getAs<IntegrateVVStepKernel>().firstIntegrate(*context, *this, forcesAreValid);
+        vvKernel.getAs<IntegrateVVStepKernel>().firstIntegrate(*context, *this, forcesAreValid);
 
         // update the position of image particles
         if (!particlesImage.empty()){
@@ -246,32 +274,33 @@ void VVIntegrator::step(int steps) {
         forcesAreValid = true;
         // Calculate Langevin forces from half-step velocity and external electric force from charge
         if (!particlesLD.empty() || !particlesElectrolyte.empty() || cosAcceleration !=0)
-            nhKernel.getAs<IntegrateVVStepKernel>().resetExtraForce(*context, *this);
+            vvKernel.getAs<IntegrateVVStepKernel>().resetExtraForce(*context, *this);
         if (!particlesLD.empty())
-            nhKernel.getAs<IntegrateVVStepKernel>().calcLangevinForce(*context, *this);
+            ldKernel.getAs<ModifyDrudeLangevinKernel>().applyLangevinForce(*context, *this);
         if (!particlesElectrolyte.empty())
-            nhKernel.getAs<IntegrateVVStepKernel>().calcElectricFieldForce(*context, *this);
+            efKernel.getAs<ModifyElectricFieldKernel>().applyElectricForce(*context, *this);
         if (cosAcceleration != 0)
-            nhKernel.getAs<IntegrateVVStepKernel>().calcPeriodicPerturbationForce(*context, *this);
+            ppKernel.getAs<ModifyPeriodicPerturbationKernel>().applyCosForce(*context, *this);
 
         // Second half velocity verlet integrate (full-step velocity update)
-        nhKernel.getAs<IntegrateVVStepKernel>().secondIntegrate(*context, *this, forcesAreValid);
+        vvKernel.getAs<IntegrateVVStepKernel>().secondIntegrate(*context, *this, forcesAreValid);
         if (!particlesNH.empty()) {
             if (cosAcceleration != 0){
-                nhKernel.getAs<IntegrateVVStepKernel>().calcPeriodicVelocityBias(*context, *this);
-                nhKernel.getAs<IntegrateVVStepKernel>().removePeriodicVelocityBias(*context, *this);
+                ppKernel.getAs<ModifyPeriodicPerturbationKernel>().calcVelocityBias(*context, *this);
+                ppKernel.getAs<ModifyPeriodicPerturbationKernel>().removeVelocityBias(*context, *this);
             }
-            nhKernel.getAs<IntegrateVVStepKernel>().propagateNHChain(*context, *this);
-            nhKernel.getAs<IntegrateVVStepKernel>().scaleVelocity(*context);
+            nhKernel.getAs<ModifyDrudeNoseKernel>().propagateNHChain(*context, *this);
+            nhKernel.getAs<ModifyDrudeNoseKernel>().scaleVelocity(*context);
             if (cosAcceleration != 0){
-                nhKernel.getAs<IntegrateVVStepKernel>().restorePeriodicVelocityBias(*context, *this);
+                ppKernel.getAs<ModifyPeriodicPerturbationKernel>().restoreVelocityBias(*context, *this);
             }
         }
     }
 }
 
 std::vector<double> VVIntegrator::getViscosity() {
-    double vMax, invVis;
-    nhKernel.getAs<IntegrateVVStepKernel>().calcViscosity(*context, *this, vMax, invVis);
+    double vMax = 0, invVis = 0;
+    if (cosAcceleration != 0)
+        ppKernel.getAs<ModifyPeriodicPerturbationKernel>().calcViscosity(*context, *this, vMax, invVis);
     return std::vector<double>{vMax, invVis};
 }

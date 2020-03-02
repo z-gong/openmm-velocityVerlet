@@ -42,7 +42,11 @@ extern "C" OPENMM_EXPORT void registerKernelFactories() {
         Platform& platform = Platform::getPlatformByName("CUDA");
         CudaVVKernelFactory* factory = new CudaVVKernelFactory();
         platform.registerKernelFactory(IntegrateVVStepKernel::Name(), factory);
+        platform.registerKernelFactory(ModifyDrudeNoseKernel::Name(), factory);
+        platform.registerKernelFactory(ModifyDrudeLangevinKernel::Name(), factory);
         platform.registerKernelFactory(ModifyImageChargeKernel::Name(), factory);
+        platform.registerKernelFactory(ModifyElectricFieldKernel::Name(), factory);
+        platform.registerKernelFactory(ModifyPeriodicPerturbationKernel::Name(), factory);
     }
     catch (std::exception ex) {
         // Ignore
@@ -63,7 +67,15 @@ KernelImpl* CudaVVKernelFactory::createKernelImpl(std::string name, const Platfo
     CudaContext& cu = *static_cast<CudaPlatform::PlatformData*>(context.getPlatformData())->contexts[0];
     if (name == IntegrateVVStepKernel::Name())
         return new CudaIntegrateVVStepKernel(name, platform, cu);
+    if (name == ModifyDrudeNoseKernel::Name())
+        return new CudaModifyDrudeNoseKernel(name, platform, cu);
+    if (name == ModifyDrudeLangevinKernel::Name())
+        return new CudaModifyDrudeLangevinKernel(name, platform, cu);
     if (name == ModifyImageChargeKernel::Name())
         return new CudaModifyImageChargeKernel(name, platform, cu);
+    if (name == ModifyElectricFieldKernel::Name())
+        return new CudaModifyElectricFieldKernel(name, platform, cu);
+    if (name == ModifyPeriodicPerturbationKernel::Name())
+        return new CudaModifyPeriodicPerturbationKernel(name, platform, cu);
     throw OpenMMException((std::string("Tried to create kernel with illegal kernel name '")+name+"'").c_str());
 }

@@ -61,20 +61,6 @@ public:
      */
     virtual void initialize(const System& system, const VVIntegrator& integrator, const DrudeForce& force) = 0;
     /**
-     * Calculate the kinetic energies of temperature groups and propagate the NH chains
-     *
-     * @param context        the context in which to execute this kernel
-     * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
-     */
-    virtual void propagateNHChain(ContextImpl& context, const VVIntegrator& integrator) = 0;
-    /**
-     * Scale the velocity based on the results of propagation of NH chains
-     *
-     * @param context        the context in which to execute this kernel
-     * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
-     */
-    virtual void scaleVelocity(ContextImpl& context) = 0;
-    /**
      * Execute the kernel.
      *
      * @param context        the context in which to execute this kernel
@@ -88,50 +74,6 @@ public:
      */
     virtual void resetExtraForce(ContextImpl& context, const VVIntegrator& integrator) = 0;
     /**
-     * calculate the Langevin force for particles thermolized by Langevin dynamics
-     * @param context
-     * @param integrator
-     */
-    virtual void calcLangevinForce(ContextImpl& context, const VVIntegrator& integrator) = 0;
-    /**
-     * calculate the external electric field force for electrolyte particles
-     * @param context
-     * @param integrator
-     */
-    virtual void calcElectricFieldForce(ContextImpl& context, const VVIntegrator& integrator) = 0;
-    /**
-     * Apply the periodic perturbation force for viscosity calculation
-     * @param context
-     * @param integrator
-     */
-    virtual void calcPeriodicPerturbationForce(ContextImpl& context, const VVIntegrator& integrator) = 0;
-    /**
-     * Calculate the velocity bias because of the periodic perturbation force
-     * @param context
-     * @param integrator
-     */
-    virtual void calcPeriodicVelocityBias(ContextImpl& context, const VVIntegrator& integrator) = 0;
-    /**
-     * Remove the velocity bias before thermostat
-     * @param context
-     * @param integrator
-     */
-    virtual void removePeriodicVelocityBias(ContextImpl& context, const VVIntegrator& integrator) = 0;
-    /**
-     * Restore the velocity bias after thermostat
-     * @param context
-     * @param integrator
-     */
-    virtual void restorePeriodicVelocityBias(ContextImpl& context, const VVIntegrator& integrator) = 0;
-    /**
-     * Calculate the reciprocal viscosity from the velocity profile because of the cos acceleration
-     * @param context
-     * @param integrator
-     * @param vMax
-     * @param invVis
-     */
-    virtual void calcViscosity(ContextImpl& context, const VVIntegrator& integrator, double& vMax, double& invVis) = 0;
-    /**
      * Execute the kernel.
      *
      * @param context        the context in which to execute this kernel
@@ -143,6 +85,74 @@ public:
      */
     virtual double computeKineticEnergy(ContextImpl& context, const VVIntegrator& integrator) = 0;
 };
+
+/**
+ * This kernel is invoked by DrudeNoseHooverIntegrator to take one time step.
+ */
+    class ModifyDrudeNoseKernel: public KernelImpl {
+    public:
+        static std::string Name() {
+            return "DrudeNoseHoover";
+        }
+        ModifyDrudeNoseKernel(std::string name, const Platform& platform) : KernelImpl(name, platform) {
+        }
+        /**
+         * Initialize the kernel.
+         *
+         * @param system     the System this kernel will be applied to
+         * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
+         * @param force      the DrudeForce to get particle parameters from
+         */
+        virtual void initialize(const System& system, const VVIntegrator& integrator, const DrudeForce& force) = 0;
+        /**
+         * Calculate the kinetic energies of temperature groups and propagate the NH chains
+         *
+         * @param context        the context in which to execute this kernel
+         * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
+         */
+        virtual void calcGroupKineticEnergies(ContextImpl& context, const VVIntegrator& integrator) = 0;
+        /**
+         * Calculate the kinetic energies of temperature groups and propagate the NH chains
+         *
+         * @param context        the context in which to execute this kernel
+         * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
+         */
+        virtual void propagateNHChain(ContextImpl& context, const VVIntegrator& integrator) = 0;
+        /**
+         * Scale the velocity based on the results of propagation of NH chains
+         *
+         * @param context        the context in which to execute this kernel
+         * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
+         */
+        virtual void scaleVelocity(ContextImpl& context) = 0;
+    };
+
+/**
+ * This kernel is invoked by DrudeNoseHooverIntegrator to update image charge positions
+ */
+    class ModifyDrudeLangevinKernel: public KernelImpl {
+    public:
+        static std::string Name() {
+            return "ModifyLangevin";
+        }
+        ModifyDrudeLangevinKernel(std::string name, const Platform& platform) : KernelImpl(name, platform) {
+        }
+        /**
+         * Initialize the kernel.
+         *
+         * @param system     the System this kernel will be applied to
+         * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
+         * @param force      the DrudeForce to get particle parameters from
+         */
+        virtual void initialize(const System& system, const VVIntegrator& integrator, const DrudeForce& force, const Kernel& vvKernel) = 0;
+        /**
+         * Execute the kernel.
+         *
+         * @param context        the context in which to execute this kernel
+         * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
+         */
+        virtual void applyLangevinForce(ContextImpl& context, const VVIntegrator& integrator) = 0;
+    };
 
 /**
  * This kernel is invoked by DrudeNoseHooverIntegrator to update image charge positions
@@ -169,6 +179,64 @@ class ModifyImageChargeKernel: public KernelImpl {
          * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
          */
         virtual void updateImagePositions(ContextImpl& context, const VVIntegrator& integrator) = 0;
+    };
+
+/**
+ * This kernel is invoked by DrudeNoseHooverIntegrator to update image charge positions
+ */
+    class ModifyElectricFieldKernel: public KernelImpl {
+    public:
+        static std::string Name() {
+            return "ModifyElectricField";
+        }
+        ModifyElectricFieldKernel(std::string name, const Platform& platform) : KernelImpl(name, platform) {
+        }
+        /**
+         * Initialize the kernel.
+         *
+         * @param system     the System this kernel will be applied to
+         * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
+         * @param force      the DrudeForce to get particle parameters from
+         */
+        virtual void initialize(const System& system, const VVIntegrator& integrator, const Kernel& vvKernel) = 0;
+        /**
+         * Execute the kernel.
+         *
+         * @param context        the context in which to execute this kernel
+         * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
+         */
+        virtual void applyElectricForce(ContextImpl& context, const VVIntegrator& integrator) = 0;
+    };
+
+/**
+ * This kernel is invoked by DrudeNoseHooverIntegrator to update image charge positions
+ */
+    class ModifyPeriodicPerturbationKernel: public KernelImpl {
+    public:
+        static std::string Name() {
+            return "ModifyPeriodicPerturbation";
+        }
+        ModifyPeriodicPerturbationKernel(std::string name, const Platform& platform) : KernelImpl(name, platform) {
+        }
+        /**
+         * Initialize the kernel.
+         *
+         * @param system     the System this kernel will be applied to
+         * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
+         * @param force      the DrudeForce to get particle parameters from
+         */
+        virtual void initialize(const System& system, const VVIntegrator& integrator, const Kernel& vvKernel) = 0;
+        /**
+         * Execute the kernel.
+         *
+         * @param context        the context in which to execute this kernel
+         * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
+         */
+        virtual void applyCosForce(ContextImpl& context, const VVIntegrator& integrator) = 0;
+        virtual void calcVelocityBias(ContextImpl& context, const VVIntegrator& integrator) = 0;
+        virtual void removeVelocityBias(ContextImpl& context, const VVIntegrator& integrator) = 0;
+        virtual void restoreVelocityBias(ContextImpl& context, const VVIntegrator& integrator) = 0;
+        virtual void calcViscosity(ContextImpl& context, const VVIntegrator& integrator, double& vMax, double& invVis) = 0;
     };
 
 } // namespace OpenMM

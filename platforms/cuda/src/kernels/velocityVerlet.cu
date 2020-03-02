@@ -7,7 +7,6 @@ extern "C" __global__ void velocityVerletIntegrateVelocities(mixed4 *__restrict_
                                                              const long long *__restrict__ force,
                                                              const real3 *__restrict__ forceLD,
                                                              mixed4 *__restrict__ posDelta,
-                                                             const int *__restrict__ particlesNH,
                                                              const mixed2 *__restrict__ dt,
                                                              const mixed fscale,
                                                              bool updatePosDelta) {
@@ -40,8 +39,7 @@ extern "C" __global__ void velocityVerletIntegratePositions(real4 *__restrict__ 
                                                             real4 *__restrict__ posqCorrection,
                                                             const mixed4 *__restrict__ posDelta,
                                                             mixed4 *__restrict__ velm,
-                                                            const mixed2 *__restrict__ dt,
-                                                            const int *__restrict__ particlesNH) {
+                                                            const mixed2 *__restrict__ dt) {
     double invStepSize = 1.0 / dt[0].y;
     for (int index = blockIdx.x * blockDim.x + threadIdx.x; index < NUM_ATOMS; index += blockDim.x * gridDim.x) {
         mixed4 vel = velm[index];
@@ -84,7 +82,7 @@ extern "C" __global__ void applyHardWallConstraints(real4 *__restrict__ posq,
                                                     mixed hardwallscaleDrude) {
 
     mixed stepSize = dt[0].y;
-    for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_ALL_PAIRS; i += blockDim.x*gridDim.x) {
+    for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_DRUDE_PAIRS; i += blockDim.x*gridDim.x) {
         int2 particles = allPairs[i];
 #ifdef USE_MIXED_PRECISION
         real4 posReal1 = posq[particles.x];
@@ -183,5 +181,15 @@ extern "C" __global__ void applyHardWallConstraints(real4 *__restrict__ posq,
                 velm[particles.y] = vel2;
             }
         }
+    }
+}
+
+/**
+ * Reset extra force
+ */
+
+extern "C" __global__ void resetExtraForce(real3 *__restrict__ forceExtra) {
+    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < NUM_ATOMS; i += blockDim.x * gridDim.x) {
+        forceExtra[i] = make_real3(0, 0, 0);
     }
 }
