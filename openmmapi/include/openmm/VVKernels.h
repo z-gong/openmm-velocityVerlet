@@ -144,7 +144,7 @@ public:
          * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
          * @param force      the DrudeForce to get particle parameters from
          */
-        virtual void initialize(const System& system, const VVIntegrator& integrator, const DrudeForce& force, Kernel vvKernel) = 0;
+        virtual void initialize(const System& system, const VVIntegrator& integrator, const DrudeForce& force, const Kernel& vvKernel) = 0;
         /**
          * Execute the kernel.
          *
@@ -198,7 +198,7 @@ class ModifyImageChargeKernel: public KernelImpl {
          * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
          * @param force      the DrudeForce to get particle parameters from
          */
-        virtual void initialize(const System& system, const VVIntegrator& integrator, Kernel vvKernel) = 0;
+        virtual void initialize(const System& system, const VVIntegrator& integrator, const Kernel& vvKernel) = 0;
         /**
          * Execute the kernel.
          *
@@ -225,7 +225,7 @@ class ModifyImageChargeKernel: public KernelImpl {
          * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
          * @param force      the DrudeForce to get particle parameters from
          */
-        virtual void initialize(const System& system, const VVIntegrator& integrator, Kernel vvKernel) = 0;
+        virtual void initialize(const System& system, const VVIntegrator& integrator, const Kernel& vvKernel) = 0;
         /**
          * Execute the kernel.
          *

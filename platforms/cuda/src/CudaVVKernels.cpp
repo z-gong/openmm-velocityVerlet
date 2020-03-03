@@ -652,8 +652,8 @@ CudaModifyDrudeLangevinKernel::~CudaModifyDrudeLangevinKernel() {
         delete pairParticlesLD;
 }
 
-void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVIntegrator &integrator, const DrudeForce &force, Kernel vvKernel) {
-    vvStepKernel = vvKernel.getAs<CudaIntegrateVVStepKernel*>();
+void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVIntegrator &integrator, const DrudeForce &force, const Kernel& vvKernel) {
+    vvStepKernel = vvKernel.getAs<CudaIntegrateVVStepKernel>();
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
     cu.getIntegrationUtilities().initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
@@ -731,7 +731,7 @@ void CudaModifyDrudeLangevinKernel::applyLangevinForce(ContextImpl& context, con
 
     int randomIndex = integration.prepareRandomNumbers(normalParticlesLD->getSize() + 2 * pairParticlesLD->getSize());
     void *args1[] = {&cu.getVelm().getDevicePointer(),
-                     &vvStepKernel->getForceExtra()->getDevicePointer(),
+                     &vvStepKernel.getForceExtra()->getDevicePointer(),
                      &normalParticlesLD->getDevicePointer(),
                      &pairParticlesLD->getDevicePointer(),
                      dragPtr, randPtr, dragDrudePtr, randDrudePtr,
@@ -799,8 +799,8 @@ CudaModifyElectricFieldKernel::~CudaModifyElectricFieldKernel() {
         delete particlesElectrolyte;
 }
 
-void CudaModifyElectricFieldKernel::initialize(const System &system, const VVIntegrator &integrator, Kernel vvKernel) {
-    vvStepKernel = vvKernel.getAs<CudaIntegrateVVStepKernel*>();
+void CudaModifyElectricFieldKernel::initialize(const System &system, const VVIntegrator &integrator, const Kernel& vvKernel) {
+    vvStepKernel = vvKernel.getAs<CudaIntegrateVVStepKernel>();
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
     cu.getIntegrationUtilities().initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
@@ -838,15 +838,15 @@ void CudaModifyElectricFieldKernel::applyElectricForce(ContextImpl& context, con
     }
 
     void *args1[] = {&cu.getPosq().getDevicePointer(),
-                     &vvStepKernel->getForceExtra()->getDevicePointer(),
+                     &vvStepKernel.getForceExtra()->getDevicePointer(),
                      &particlesElectrolyte->getDevicePointer(),
                      efieldPtr,
                      fscalePtr};
     cu.executeKernel(kernelApplyElectricForce, args1, particlesElectrolyte->getSize());
 }
 
-void CudaModifyPeriodicPerturbationKernel::initialize(const System &system, const VVIntegrator &integrator, Kernel vvKernel) {
-    vvStepKernel = vvKernel.getAs<CudaIntegrateVVStepKernel*>();
+void CudaModifyPeriodicPerturbationKernel::initialize(const System &system, const VVIntegrator &integrator, const Kernel& vvKernel) {
+    vvStepKernel = vvKernel.getAs<CudaIntegrateVVStepKernel>();
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
     cu.getIntegrationUtilities().initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
@@ -894,7 +894,7 @@ void CudaModifyPeriodicPerturbationKernel::applyCosForce(ContextImpl& context, c
 
     void *args1[] = {&cu.getPosq().getDevicePointer(),
                      &cu.getVelm().getDevicePointer(),
-                     &vvStepKernel->getForceExtra()->getDevicePointer(),
+                     &vvStepKernel.getForceExtra()->getDevicePointer(),
                      accelerationPtr,
                      cu.getInvPeriodicBoxSizePointer()};
     cu.executeKernel(kernelCos, args1, numAtoms);
