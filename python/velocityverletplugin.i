@@ -99,14 +99,18 @@ public:
    void setLoopsPerStep(int loops) ;
    int getNumNHChains() const ;
    void setNumNHChains(int numChains) ;
-   int getUseDrudeNHChains() const ;
+   bool getUseDrudeNHChains() const ;
    void setUseDrudeNHChains(int useDrudeNHChains) ;
-   int getUseCOMTempGroup() const ;
+   bool getUseCOMTempGroup() const ;
    void setUseCOMTempGroup(int useCOMTempGroup) ;
    int getNumTempGroups() const ;
    int addTempGroup() ;
    int addParticleTempGroup(int tempGroup) ;
    void setParticleTempGroup(int particle, int tempGroup) ;
+
+   %apply int& OUTPUT {int& tempGroup};
+   void getParticleTempGroup(int particle, int& tempGroup) const;
+   %clear int& tempGroup;
 
    int addParticleLangevin(int particle) ;
    int getRandomNumberSeed() const ;
@@ -127,9 +131,8 @@ public:
    double getCosAcceleration() const ;
    std::vector<double> getViscosity();
 
-   %apply int& OUTPUT {int& tempGroup};
-   void getParticleTempGroup(int particle, int& tempGroup) const;
-   %clear int& tempGroup;
+   bool getDebugEnabled() const ;
+   void setDebugEnabled(bool) ;
 
 };
 

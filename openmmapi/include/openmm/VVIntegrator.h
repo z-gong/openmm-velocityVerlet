@@ -458,6 +458,18 @@ public:
      * @param steps   the number of time steps to take
      */
     void step(int steps);
+    /**
+     * Get whether to print debug information
+     */
+    const bool& getDebugEnabled() const{
+        return debugEnabled;
+    };
+    /**
+     * Set whether to print debug information
+     */
+    void setDebugEnabled(bool enabled){
+        debugEnabled = enabled;
+    };
 protected:
     /**
      * This will be called by the Context when it is created.  It informs the Integrator
@@ -493,6 +505,7 @@ protected:
         return false;
     }
 private:
+    bool debugEnabled;
     double temperature, couplingTime, drudeTemperature, drudeCouplingTime, maxDrudeDistance;
     int loopsPerStep, numNHChains;
     bool useDrudeNHChains, useCOMTempGroup;

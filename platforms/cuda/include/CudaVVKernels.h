@@ -204,7 +204,6 @@ private:
     private:
         CudaIntegrateVVStepKernel* vvStepKernel;
         CudaContext &cu;
-        int numAtoms;
         std::vector<int> normalParticlesLDVec;
         std::vector<int2> pairParticlesLDVec;
         CudaArray *particlesLD;

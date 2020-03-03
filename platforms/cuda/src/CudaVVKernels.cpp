@@ -288,6 +288,7 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 
+    numAtoms = cu.getNumAtoms();
     particlesNHVec = integrator.getParticlesNH();
     residuesNHVec = integrator.getResiduesNH();
     numTempGroups = integrator.getNumTempGroups();
@@ -488,8 +489,6 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
     map<string, string> definesNH;
     definesNH["NUM_PARTICLES_NH"] = cu.intToString(particlesNHVec.size());
     definesNH["NUM_RESIDUES_NH"] = cu.intToString(residuesNHVec.size());
-    definesNH["NUM_ATOMS"] = cu.intToString(numAtoms);
-    definesNH["PADDED_NUM_ATOMS"] = cu.intToString(cu.getPaddedNumAtoms());
     definesNH["NUM_NORMAL_PARTICLES_NH"] = cu.intToString(normalParticlesNHVec.size());
     definesNH["NUM_PAIRS_NH"] = cu.intToString(pairParticlesNHVec.size());
     definesNH["NUM_TEMP_GROUPS"] = cu.intToString(numTempGroups);
@@ -685,8 +684,6 @@ void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVInt
         pairParticlesLD->upload(pairParticlesLDVec);
 
     map<string, string> definesExtra;
-    definesExtra["NUM_ATOMS"] = cu.intToString(numAtoms);
-    definesExtra["PADDED_NUM_ATOMS"] = cu.intToString(cu.getPaddedNumAtoms());
     definesExtra["NUM_NORMAL_PARTICLES_LD"] = cu.intToString(normalParticlesLDVec.size());
     definesExtra["NUM_PAIRS_LD"] = cu.intToString(pairParticlesLDVec.size());
     CUmodule moduleExtra = cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::drudeLangevin, definesExtra, "");
@@ -845,12 +842,24 @@ void CudaModifyElectricFieldKernel::applyElectricForce(ContextImpl& context, con
     cu.executeKernel(kernelApplyElectricForce, args1, particlesElectrolyte->getSize());
 }
 
+CudaModifyPeriodicPerturbationKernel::~CudaModifyPeriodicPerturbationKernel() {
+    if (vMaxBuffer != NULL)
+        delete vMaxBuffer;
+}
+
 void CudaModifyPeriodicPerturbationKernel::initialize(const System &system, const VVIntegrator &integrator, Kernel& vvKernel) {
+    if (integrator.getDebugEnabled())
+        cout << "Initializing PeriodicPerturbationModifier...\n" << flush;
+
     vvStepKernel = &vvKernel.getAs<CudaIntegrateVVStepKernel>();
+    if (integrator.getDebugEnabled())
+        cout << "IntegrateVVStepKernel found\n" << flush;
+
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
     cu.getIntegrationUtilities().initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
 
+    numAtoms = cu.getNumAtoms();
     map<string, string> definesPP;
     definesPP["NUM_ATOMS"] = cu.intToString(numAtoms);
     definesPP["PADDED_NUM_ATOMS"] = cu.intToString(cu.getPaddedNumAtoms());
@@ -872,11 +881,6 @@ void CudaModifyPeriodicPerturbationKernel::initialize(const System &system, cons
     invMassTotal = 1.0 / massTotal;
 
     cout << "CUDA modules for PeriodicPerturbationModifier are created\n" << flush;
-}
-
-CudaModifyPeriodicPerturbationKernel::~CudaModifyPeriodicPerturbationKernel() {
-    if (vMaxBuffer != NULL)
-        delete vMaxBuffer;
 }
 
 void CudaModifyPeriodicPerturbationKernel::applyCosForce(ContextImpl& context, const VVIntegrator& integrator) {

@@ -64,6 +64,7 @@ VVIntegrator::VVIntegrator(double temperature, double couplingTime, double drude
     setMirrorLocation(0.0);
     setElectricField(0.0);
     setCosAcceleration(0.0);
+    setDebugEnabled(false);
 }
 
 VVIntegrator::~VVIntegrator() {
