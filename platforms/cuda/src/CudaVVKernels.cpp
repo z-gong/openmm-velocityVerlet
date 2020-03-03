@@ -96,7 +96,7 @@ void CudaIntegrateVVStepKernel::initialize(const System& system, const VVIntegra
     cout << "CUDA modules for velocity-Verlet integrator are created\n"
          << "    NUM_ATOMS: " << numAtoms << ", PADDED_NUM_ATOMS: " << cu.getPaddedNumAtoms() << "\n"
          << "    Num Drude pairs: " << drudePairsVec.size() << "\n"
-         << "    Num thread blocks: " << cu.getNumThreadBlocks() << " Thread block size: " << cu.ThreadBlockSize << "\n"
+         << "    Num thread blocks: " << cu.getNumThreadBlocks() << ", Thread block size: " << cu.ThreadBlockSize << "\n"
          << flush;
 
     prevStepSize = -1.0;
@@ -505,8 +505,8 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
     cout << "CUDA modules for Nose-Hoover thermostat are created\n"
          << "    Num molecules in NH thermostat: " << residuesNHVec.size() << " / " << integrator.getNumResidues() << "\n"
          << "    Num normal particles: " << normalParticlesNHVec.size() << ", Num Drude pairs: " << pairParticlesNHVec.size() << "\n"
-         << "    Real T: " << integrator.getTemperature() << ", Drude T: " << integrator.getDrudeTemperature() << "\n"
-         << "    Real coupling time: " << integrator.getCouplingTime() << ", Drude coupling time: " << integrator.getDrudeCouplingTime() << "\n"
+         << "    Real T: " << integrator.getTemperature() << " K, Drude T: " << integrator.getDrudeTemperature() << " K\n"
+         << "    Real coupling time: " << integrator.getCouplingTime() << " ps, Drude coupling time: " << integrator.getDrudeCouplingTime() << " ps\n"
          << "    Loops per NH step: " << integrator.getLoopsPerStep() << ", Num NH chain: " << integrator.getNumNHChains() << ", Use chain for Drude: " << integrator.getUseDrudeNHChains() << "\n"
          << "    Num temperature groups: " << numTempGroups << ", Use COM temperature group: " << integrator.getUseCOMTempGroup() << "\n"
          << flush;
