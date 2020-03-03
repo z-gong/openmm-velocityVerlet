@@ -73,17 +73,18 @@ extern "C" __global__ void velocityVerletIntegratePositions(real4 *__restrict__ 
 /**
  * Apply hard wall constraints
  */
+#include <assert.h>
 extern "C" __global__ void applyHardWallConstraints(real4 *__restrict__ posq,
                                                     real4 *__restrict__ posqCorrection,
                                                     mixed4 *__restrict__ velm,
-                                                    const int2 *__restrict__ allPairs,
+                                                    const int2 *__restrict__ drudePairs,
                                                     const mixed2 *__restrict__ dt,
                                                     mixed maxDrudeDistance,
                                                     mixed hardwallscaleDrude) {
 
     mixed stepSize = dt[0].y;
     for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_DRUDE_PAIRS; i += blockDim.x*gridDim.x) {
-        int2 particles = allPairs[i];
+        int2 particles = drudePairs[i];
 #ifdef USE_MIXED_PRECISION
         real4 posReal1 = posq[particles.x];
         real4 posReal2 = posq[particles.y];
@@ -101,6 +102,11 @@ extern "C" __global__ void applyHardWallConstraints(real4 *__restrict__ posq,
         if (rInv*maxDrudeDistance < 1) {
             // The constraint has been violated, so make the inter-particle distance "bounce"
             // off the hard wall.
+
+            if (rInv*maxDrudeDistance < 0.5){
+                printf("ERROR: Drude pair %d-%d moved too far beyond hardwall constraint\n", particles.x, particles.y);
+                assert(0);
+            }
 
             mixed4 bondDir = delta*rInv;
             mixed4 vel1 = velm[particles.x];

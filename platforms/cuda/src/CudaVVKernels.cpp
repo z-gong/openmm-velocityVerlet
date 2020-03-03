@@ -68,6 +68,8 @@ void CudaIntegrateVVStepKernel::initialize(const System& system, const VVIntegra
         drudePairsVec.push_back(make_int2(p, p1));
     }
     drudePairs = CudaArray::create<int2>(cu, max((int) drudePairsVec.size(), 1), "vvDrudePairs");
+    if (!drudePairsVec.empty())
+        drudePairs->upload(drudePairsVec);
 
     // init forceExtra
     if (cu.getUseDoublePrecision()) {
@@ -93,7 +95,7 @@ void CudaIntegrateVVStepKernel::initialize(const System& system, const VVIntegra
 
     cout << "CUDA modules for velocity-Verlet integrator are created\n"
          << "    NUM_ATOMS: " << numAtoms << ", PADDED_NUM_ATOMS: " << cu.getPaddedNumAtoms() << "\n"
-         << "    Num Drude pairs: " << drudePairsVec.size() << "\n"
+         << "    Num Drude pairs: " << drudePairsVec.size() << ", Drude hardwall distance: " << integrator.getMaxDrudeDistance() << " nm\n"
          << "    Num thread blocks: " << cu.getNumThreadBlocks() << ", Thread block size: " << cu.ThreadBlockSize << "\n";
 
     prevStepSize = -1.0;
@@ -667,7 +669,7 @@ void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVInt
     CUmodule module = cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::drudeLangevin, defines, "");
     kernelApplyLangevin = cu.getKernel(module, "addExtraForceDrudeLangevin");
 
-    cout << "CUDA modules for LangevinModifier are created\n"
+    cout << "CUDA modules for DrudeLangevinModifier are created\n"
          << "    Num normal particles: " << normalParticlesLDVec.size() << ", Num Drude pairs: " << pairParticlesLDVec.size() << "\n"
          << "    Real T: " << integrator.getTemperature() << " K, Drude T: " << integrator.getDrudeTemperature() << " K\n"
          << "    Real friction: " << integrator.getFriction() << " /ps, Drude friction: " << integrator.getDrudeFriction() << " /ps\n";
