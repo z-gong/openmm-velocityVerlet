@@ -232,14 +232,6 @@ public:
      */
     int addTempGroup();
     /**
-     * Add the temperature group of a particle to the last index of particleTempGroup.
-     * Drude particles and particles within constraint should be assigned to the same temp group
-     *
-     * @param tempGroup       the index of temperature group to be assigned for the last particle
-     * @return the index of the particle that was added
-     */
-    int addParticleTempGroup(int tempGroup);
-    /**
      * Get the temperature group of a real particle.
      *
      * @param particle              the index of the particle for which to get parameters

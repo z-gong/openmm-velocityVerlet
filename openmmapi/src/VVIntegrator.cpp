@@ -82,12 +82,6 @@ int VVIntegrator::addTempGroup() {
     return tempGroups.size()-1;
 }
 
-int VVIntegrator::addParticleTempGroup(int tempGroup) {
-    ASSERT_VALID_INDEX(tempGroup, tempGroups);
-    particleTempGroup.push_back(tempGroup);
-    return particleTempGroup.size()-1;
-}
-
 void VVIntegrator::setParticleTempGroup(int particle, int tempGroup) {
     ASSERT_VALID_INDEX(particle, particleTempGroup);
     ASSERT_VALID_INDEX(tempGroup, tempGroups);
