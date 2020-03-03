@@ -243,7 +243,6 @@ private:
     private:
         CudaContext &cu;
         CudaArray *imagePairs;
-        std::vector<int2> imagePairsVec;
         CUfunction kernelImage;
     };
 

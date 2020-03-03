@@ -771,7 +771,7 @@ void CudaModifyImageChargeKernel::initialize(const System& system, const VVInteg
 
     // Identify particle pairs and ordinary particles.
 
-    imagePairsVec = std::vector<int2>(0);
+    auto imagePairsVec = std::vector<int2>(0);
     for (auto pair: integrator.getImagePairs())
         imagePairsVec.push_back(make_int2(pair.first, pair.second));
 
@@ -819,7 +819,7 @@ void CudaModifyImageChargeKernel::updateImagePositions(ContextImpl& context, con
                      &posCorrection,
                      &imagePairs->getDevicePointer(),
                      mirrorPtr};
-    cu.executeKernel(kernelImage, args2, imagePairsVec.size());
+    cu.executeKernel(kernelImage, args2, integrator.getImagePairs().size());
 }
 
 CudaModifyElectricFieldKernel::~CudaModifyElectricFieldKernel() {
