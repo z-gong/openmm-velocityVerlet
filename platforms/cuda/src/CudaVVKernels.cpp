@@ -1008,9 +1008,9 @@ void CudaModifyPeriodicPerturbationKernel::calcViscosity(ContextImpl& context, c
         vMaxBuffer->download(vMaxBufferVec);
         vMax = vMaxBufferVec[0];
     } else {
-        auto VBufferVec = std::vector<float>(numAtoms, 0);
-        vMaxBuffer->download(VBufferVec);
-        vMax = (double) VBufferVec[0];
+        auto vMaxBufferVec = std::vector<float>(numAtoms, 0);
+        vMaxBuffer->download(vMaxBufferVec);
+        vMax = (double) vMaxBufferVec[0];
     }
 
     double4 box = cu.getPeriodicBoxSize();
