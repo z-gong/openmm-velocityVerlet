@@ -93,7 +93,11 @@ void CudaIntegrateVVStepKernel::initialize(const System& system, const VVIntegra
     kernelDrudeHardwall = cu.getKernel(module, "applyHardWallConstraints");
     kernelResetExtraForce = cu.getKernel(module, "resetExtraForce");
 
-    cout << "CUDA modules for velocity-Verlet integrator are created\n" << flush;
+    cout << "CUDA modules for velocity-Verlet integrator are created\n"
+         << "    NUM_ATOMS: " << numAtoms << ", PADDED_NUM_ATOMS: " << cu.getPaddedNumAtoms() << "\n"
+         << "    Num Drude pairs: " << drudePairsVec.size() << "\n"
+         << "    Num thread blocks: " << cu.getNumThreadBlocks() << " Thread block size: " << cu.ThreadBlockSize << "\n"
+         << flush;
 
     prevStepSize = -1.0;
 }
@@ -444,16 +448,6 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
         }
     }
 
-    cout << "TGNH integrator initialization finished\n"
-         << "    Num molecules in NH thermostat: " << residuesNHVec.size() << " / " << integrator.getNumResidues() << "\n"
-         << "    Real T: " << integrator.getTemperature() << ", Drude T: " << integrator.getDrudeTemperature() << "\n"
-         << "    Real coupling Time: " << integrator.getCouplingTime() << ", Drude coupling Time: " << integrator.getDrudeCouplingTime() << "\n";
-    for (int i = 0; i < numTempGroups + 2; i++) {
-        cout << "    NkbT[" << i << "]: " << tempGroupNkbT[i] << ", etaMass[" << i << "]: " << etaMass[i][0] << ", DOF[" << i << "]: " << tempGroupDof[i] << "\n";
-    }
-    cout << "    Loops per NH Step: " << integrator.getLoopsPerStep() << ", Num NH Chain: " << integrator.getNumNHChains() << ", useDrudeNHChains: " << integrator.getUseDrudeNHChains() << "\n"
-         << "    Num Temperature groups: " << numTempGroups << ", Use COM Temperature group: " << integrator.getUseCOMTempGroup() << "\n";
-
     // Initialize CudaArray
     particlesNH = CudaArray::create<int>(cu, max((int) particlesNHVec.size(), 1), "drudeParticlesNH");
     residuesNH = CudaArray::create<int>(cu, max((int) residuesNHVec.size(), 1), "drudeResiduesNH");
@@ -501,10 +495,6 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
     defines["NUM_PAIRS_NH"] = cu.intToString(pairParticlesNHVec.size());
     defines["NUM_TEMP_GROUPS"] = cu.intToString(numTempGroups);
 
-    cout << "    NUM_ATOMS: " << numAtoms << ", PADDED_NUM_ATOMS: " << cu.getPaddedNumAtoms() << "\n"
-         << "    NH NUM_NORMAL_PARTICLES: " << normalParticlesNHVec.size() << ", NUM_PAIRS: " << pairParticlesNHVec.size() << "\n"
-         << "    numThreadBlocks: " << cu.getNumThreadBlocks() << " ThreadBlockSize: " << cu.ThreadBlockSize << "\n";
-
     CUmodule module = cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::drudeNoseHoover, defines, "");
     kernelCOMVel = cu.getKernel(module, "calcCOMVelocities");
     kernelNormVel = cu.getKernel(module, "normalizeVelocities");
@@ -512,7 +502,17 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
     kernelKESum = cu.getKernel(module, "sumNormalizedKineticEnergies");
     kernelScale = cu.getKernel(module, "integrateDrudeNoseHooverVelocityScale");
 
-    cout << "CUDA modules for Nose-Hoover thermostat are created\n" << flush;
+    cout << "CUDA modules for Nose-Hoover thermostat are created\n"
+         << "    Num molecules in NH thermostat: " << residuesNHVec.size() << " / " << integrator.getNumResidues() << "\n"
+         << "    Num normal particles: " << normalParticlesNHVec.size() << ", Num Drude pairs: " << pairParticlesNHVec.size() << "\n"
+         << "    Real T: " << integrator.getTemperature() << ", Drude T: " << integrator.getDrudeTemperature() << "\n"
+         << "    Real coupling time: " << integrator.getCouplingTime() << ", Drude coupling time: " << integrator.getDrudeCouplingTime() << "\n"
+         << "    Loops per NH step: " << integrator.getLoopsPerStep() << ", Num NH chain: " << integrator.getNumNHChains() << ", Use chain for Drude: " << integrator.getUseDrudeNHChains() << "\n"
+         << "    Num temperature groups: " << numTempGroups << ", Use COM temperature group: " << integrator.getUseCOMTempGroup() << "\n"
+         << flush;
+    for (int i = 0; i < numTempGroups + 2; i++) {
+        cout << "    NkbT[" << i << "]: " << tempGroupNkbT[i] << ", etaMass[" << i << "]: " << etaMass[i][0] << ", DOF[" << i << "]: " << tempGroupDof[i] << "\n" << flush;
+    }
 }
 
 
@@ -705,7 +705,9 @@ void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVInt
     CUmodule module = cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::drudeLangevin, defines, "");
     kernelApplyLangevin = cu.getKernel(module, "addExtraForceDrudeLangevin");
 
-    cout << "CUDA modules for LangevinModifier are created\n" << flush;
+    cout << "CUDA modules for LangevinModifier are created\n"
+         << "    Num normal particles: " << normalParticlesLDVec.size() << ", Num Drude pairs: " << pairParticlesLDVec.size() << "\n"
+         << flush;
 }
 
 void CudaModifyDrudeLangevinKernel::applyLangevinForce(ContextImpl& context, const VVIntegrator& integrator) {
@@ -783,7 +785,9 @@ void CudaModifyImageChargeKernel::initialize(const System& system, const VVInteg
     CUmodule module = cu.createModule(CudaVVKernelSources::vectorOps+CudaVVKernelSources::imageCharge, defines, "");
     kernelImage = cu.getKernel(module, "updateImagePositions");
 
-    cout << "CUDA modules for ImageChargeModifier are created\n" << flush;
+    cout << "CUDA modules for ImageChargeModifier are created\n"
+         << "    Num image pairs: " << imagePairsVec.size() << "\n"
+         << flush;
 }
 
 void CudaModifyImageChargeKernel::updateImagePositions(ContextImpl& context, const VVIntegrator& integrator) {
@@ -844,7 +848,10 @@ void CudaModifyElectricFieldKernel::initialize(const System &system, const VVInt
     CUmodule module = cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::electricField, defines, "");
     kernelApplyElectricForce = cu.getKernel(module, "addExtraForceElectricField");
 
-    cout << "CUDA modules for ElectricFieldModifier are created\n" << flush;
+    cout << "CUDA modules for ElectricFieldModifier are created\n"
+         << "    Num electrolyte particles: " << particlesElectrolyteVec.size() << "\n"
+         << "    Electric field strength: " << integrator.getElectricField() * 6.241509629152651e21 << " V/nm\n"
+         << flush;
 }
 
 void CudaModifyElectricFieldKernel::applyElectricForce(ContextImpl& context, const VVIntegrator& integrator) {
@@ -910,7 +917,9 @@ void CudaModifyPeriodicPerturbationKernel::initialize(const System &system, cons
         massTotal += system.getParticleMass(i);
     invMassTotal = 1.0 / massTotal;
 
-    cout << "CUDA modules for PeriodicPerturbationModifier are created\n" << flush;
+    cout << "CUDA modules for PeriodicPerturbationModifier are created\n"
+         << "    Cosine acceleration strength: " << integrator.getCosAcceleration() << " nm/ps^2\n"
+         << flush;
 }
 
 void CudaModifyPeriodicPerturbationKernel::applyCosForce(ContextImpl& context, const VVIntegrator& integrator) {
