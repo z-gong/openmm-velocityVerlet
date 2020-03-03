@@ -54,6 +54,9 @@ CudaIntegrateVVStepKernel::~CudaIntegrateVVStepKernel() {
 }
 
 void CudaIntegrateVVStepKernel::initialize(const System& system, const VVIntegrator& integrator, const DrudeForce& force) {
+    if (integrator.getDebugEnabled())
+        cout << "Initializing CudaVVIntegrator...\n" << flush;
+
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
     cu.getIntegrationUtilities().initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
@@ -88,6 +91,7 @@ void CudaIntegrateVVStepKernel::initialize(const System& system, const VVIntegra
     kernelVel = cu.getKernel(module, "velocityVerletIntegrateVelocities");
     kernelPos = cu.getKernel(module, "velocityVerletIntegratePositions");
     kernelDrudeHardwall = cu.getKernel(module, "applyHardWallConstraints");
+    kernelResetExtraForce = cu.getKernel(module, "resetExtraForce");
 
     cout << "CUDA modules for velocity-Verlet integrator are created\n" << flush;
 
@@ -95,6 +99,9 @@ void CudaIntegrateVVStepKernel::initialize(const System& system, const VVIntegra
 }
 
 void CudaIntegrateVVStepKernel::firstIntegrate(ContextImpl& context, const VVIntegrator& integrator, bool& forcesAreValid) {
+    if (integrator.getDebugEnabled())
+        cout << "VVIntegrator first-half integration\n" << flush;
+
     cu.setAsCurrent();
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 
@@ -183,6 +190,9 @@ void CudaIntegrateVVStepKernel::firstIntegrate(ContextImpl& context, const VVInt
 }
 
 void CudaIntegrateVVStepKernel::resetExtraForce(ContextImpl& context, const VVIntegrator& integrator) {
+    if (integrator.getDebugEnabled())
+        cout << "VVIntegrator reset extra force\n" << flush;
+
     cu.setAsCurrent();
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 
@@ -190,9 +200,10 @@ void CudaIntegrateVVStepKernel::resetExtraForce(ContextImpl& context, const VVIn
     cu.executeKernel(kernelResetExtraForce, args1, numAtoms);
 }
 
-void CudaIntegrateVVStepKernel::secondIntegrate(ContextImpl &context,
-                                                const VVIntegrator &integrator,
-                                                bool &forcesAreValid) {
+void CudaIntegrateVVStepKernel::secondIntegrate(ContextImpl &context, const VVIntegrator &integrator, bool &forcesAreValid) {
+    if (integrator.getDebugEnabled())
+        cout << "VVIntegrator second-half integration\n" << flush;
+
     cu.setAsCurrent();
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 
@@ -264,8 +275,8 @@ CudaModifyDrudeNoseKernel::~CudaModifyDrudeNoseKernel() {
         delete normalParticlesNH;
     if (pairParticlesNH != NULL)
         delete pairParticlesNH;
-    if (vscaleFactors != NULL)
-        delete vscaleFactors;
+    if (vscaleFactorsNH != NULL)
+        delete vscaleFactorsNH;
     if (particleResId != NULL)
         delete particleResId;
     if (particleTempGroup != NULL)
@@ -278,20 +289,23 @@ CudaModifyDrudeNoseKernel::~CudaModifyDrudeNoseKernel() {
         delete comVelm;
     if (normVelm != NULL)
         delete normVelm;
-    if (kineticEnergyBuffer != NULL)
-        delete kineticEnergyBuffer;
-    if (kineticEnergies != NULL)
-        delete kineticEnergies;
+    if (kineticEnergyBufferNH != NULL)
+        delete kineticEnergyBufferNH;
+    if (kineticEnergiesNH != NULL)
+        delete kineticEnergiesNH;
 }
 
 void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegrator &integrator, const DrudeForce &force) {
+    if (integrator.getDebugEnabled())
+        cout << "Initializing CudaModifyDrudeNoseKernel...\n" << flush;
+
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 
     numAtoms = cu.getNumAtoms();
+    numTempGroups = integrator.getNumTempGroups();
     particlesNHVec = integrator.getParticlesNH();
     residuesNHVec = integrator.getResiduesNH();
-    numTempGroups = integrator.getNumTempGroups();
 
     /**
      * By default, all atoms are in the first temperature group
@@ -301,13 +315,6 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
      * particlesSortedByResIdVec records the indexes of particles sorted by residue id
      * so that even when molecules are not successive, it still works
      */
-
-    int numNHChains = integrator.getNumNHChains();
-    etaMass = std::vector<vector<double> >(numTempGroups+2, std::vector<double>(numNHChains, 0.0));
-    eta = std::vector<vector<double> >(numTempGroups+2, std::vector<double>(numNHChains, 0.0));
-    etaDot = std::vector<vector<double> >(numTempGroups+2, std::vector<double>(numNHChains+1, 0.0));
-    etaDotDot = std::vector<vector<double> >(numTempGroups+2, std::vector<double>(numNHChains, 0.0));
-    tempGroupDof = std::vector<double>(numTempGroups+2, 0.0);
 
     // Identify particles, pairs and residues
 
@@ -343,17 +350,17 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
             }
         }
     }
+
     for (int i = 0; i < force.getNumParticles(); i++) {
         int p, p1, p2, p3, p4;
-        int tg, tg1;
         double charge, polarizability, aniso12, aniso34;
         force.getParticleParameters(i, p, p1, p2, p3, p4, charge, polarizability, aniso12, aniso34);
-        integrator.getParticleTempGroup(p, tg);
-        integrator.getParticleTempGroup(p1, tg1);
-        if (tg != tg1)
-            throw OpenMMException("Temperature group for Drude particle must be the same as the parent particle");
-
         if (integrator.isParticleNH(p)){
+            int tg, tg1;
+            integrator.getParticleTempGroup(p, tg);
+            integrator.getParticleTempGroup(p1, tg1);
+            if (tg != tg1)
+                throw OpenMMException("Temperature group for Drude particle must be the same as the parent particle");
             particlesNHSet.erase(p);
             particlesNHSet.erase(p1);
             tempGroupDof[tg] -= 3;
@@ -362,87 +369,38 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
         }
     }
     normalParticlesNHVec.insert(normalParticlesNHVec.begin(), particlesNHSet.begin(), particlesNHSet.end());
-    particlesNH = CudaArray::create<int>(cu, max((int) particlesNHVec.size(), 1), "drudeParticlesNH");
-    residuesNH = CudaArray::create<int>(cu, max((int) residuesNHVec.size(), 1), "drudeResiduesNH");
-    normalParticlesNH = CudaArray::create<int>(cu, max((int) normalParticlesNHVec.size(), 1), "drudeNormalParticlesNH");
-    pairParticlesNH = CudaArray::create<int2>(cu, max((int) pairParticlesNHVec.size(), 1), "drudePairParticlesNH");
-    particleResId = CudaArray::create<int>(cu, max((int) particleResIdVec.size(), 1), "drudeParticleResId");
-    particleTempGroup = CudaArray::create<int>(cu, max((int) particleTempGroupVec.size(), 1), "drudeParticleTempGroups");
-    particlesInResidues = CudaArray::create<int2>(cu, max((int) particlesInResiduesVec.size(), 1), "drudeParticlesInResidues");
-    particlesSortedByResId = CudaArray::create<int>(cu, max((int) particlesSortedByResIdVec.size(), 1), "drudeParticlesSortedByResId");
-    kineticEnergyBuffer = CudaArray::create<double>(cu, max((int) particlesNHVec.size() * (numTempGroups + 2), 1), "drudeKineticEnergyBufferNH");
-    kineticEnergies = CudaArray::create<double>(cu, max(numTempGroups+2, 1), "kineticEnergiesNH");
-    vscaleFactors = CudaArray::create<double>(cu, max(numTempGroups+2, 1), "drudeScaleFactorsNH");
 
-    if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision()) {
-        comVelm = CudaArray::create<double4>(cu, max(integrator.getNumResidues(), 1), "drudeComVelm");
-        normVelm = CudaArray::create<double4>(cu, numAtoms, "drudeNormVelm");
-    }
-    else {
-        comVelm = CudaArray::create<float4>(cu, max(integrator.getNumResidues(), 1), "drudeComVelm");
-        normVelm = CudaArray::create<float4>(cu, numAtoms, "drudeNormVelm");
-    }
-
-//    std::cout << "ParticlesNH: ";
-//    for (auto p: particlesNHVec) {
-//        std::cout << p << " ";
-//    }
-//    std::cout << "\nResiduesNH: ";
-//    for (auto p: residuesNHVec) {
-//        std::cout << p << " ";
-//    }
-//    std::cout << "\nParticlesInResidues: ";
-//    for (auto &p: particlesInResiduesVec) {
-//        std::cout << p.x << ": " << p.y << "; ";
-//    }
-//    std::cout << "\n";
-
-    if (!particlesNHVec.empty())
-        particlesNH->upload(particlesNHVec);
-    if (!residuesNHVec.empty())
-        residuesNH->upload(residuesNHVec);
-    if (!normalParticlesNHVec.empty())
-        normalParticlesNH->upload(normalParticlesNHVec);
-    if (!pairParticlesNHVec.empty())
-        pairParticlesNH->upload(pairParticlesNHVec);
-    if (!particleResIdVec.empty())
-        particleResId->upload(particleResIdVec);
-    if (!particleTempGroupVec.empty())
-        particleTempGroup->upload(particleTempGroupVec);
-    if (!particlesInResiduesVec.empty())
-        particlesInResidues->upload(particlesInResiduesVec);
-    if (!particlesSortedByResIdVec.empty())
-        particlesSortedByResId->upload(particlesSortedByResIdVec);
-
-    // reduce real d.o.f by number of constraints, and 3 if CMMotion remove is true
+    // Subtract constraint DOFs from internal motions
     for (int i = 0; i < system.getNumConstraints(); i++) {
-        int p,p1,tg,tg1;
+        int p, p1;
         double distance;
         system.getConstraintParameters(i, p, p1, distance);
-        integrator.getParticleTempGroup(p, tg);
-        integrator.getParticleTempGroup(p1, tg1);
-        if (tg != tg1)
-            throw OpenMMException("Temperature group of constrained particles must be the same");
-
-        if (integrator.isParticleNH(p))
+        if (integrator.isParticleNH(p)) {
+            int tg, tg1;
+            integrator.getParticleTempGroup(p, tg);
+            integrator.getParticleTempGroup(p1, tg1);
+            if (tg != tg1)
+                throw OpenMMException("Temperature group of constrained particles must be the same");
             tempGroupDof[tg] -= 1;
+        }
     }
+    /**
+     * 3 DOFs should be subtracted if CMMotionRemover presents
+     * if useCOMTempGroup, subtract it from molecular motion
+     * otherwise, subtract it from first temperature group
+     */
     if (integrator.getUseCOMTempGroup()) {
         tempGroupDof[numTempGroups] = 3 * residuesNHVec.size();
     }
-
-    /** TODO gongzheng @ 2019-12-12
-     * BUG -- if not useCOMTempGroup, then COM motion DOF not subtracted from other temp group
-     */
-    if (integrator.getUseCOMTempGroup()) {
-        for (int i = 0; i < system.getNumForces(); i++) {
-            if (typeid(system.getForce(i)) == typeid(CMMotionRemover)) {
+    for (int i = 0; i < system.getNumForces(); i++) {
+        if (typeid(system.getForce(i)) == typeid(CMMotionRemover)) {
+            if (integrator.getUseCOMTempGroup())
                 tempGroupDof[numTempGroups] -= 3;
-                break;
-            }
+            else
+                tempGroupDof[0] -= 3;
+            break;
         }
     }
-
     /**
      *  set DOF to zero if it's negative
      *  just in case, though i cannot image when this would happen
@@ -450,7 +408,14 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
     for (int i = 0; i < numTempGroups + 2; i++)
         tempGroupDof[i] = max(tempGroupDof[i], (double) 0);
 
-    // calculate etaMass
+    // Initialize NH chain particles
+    int numNHChains = integrator.getNumNHChains();
+    etaMass = std::vector<vector<double> >(numTempGroups+2, std::vector<double>(numNHChains, 0.0));
+    eta = std::vector<vector<double> >(numTempGroups+2, std::vector<double>(numNHChains, 0.0));
+    etaDot = std::vector<vector<double> >(numTempGroups+2, std::vector<double>(numNHChains+1, 0.0));
+    etaDotDot = std::vector<vector<double> >(numTempGroups+2, std::vector<double>(numNHChains, 0.0));
+    tempGroupDof = std::vector<double>(numTempGroups+2, 0.0);
+
     realkbT = BOLTZ * integrator.getTemperature();
     drudekbT = BOLTZ * integrator.getDrudeTemperature();
     double realEtaMassUnit = realkbT * pow(integrator.getCouplingTime(), 2);
@@ -478,31 +443,69 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
          << "    Num molecules in NH thermostat: " << residuesNHVec.size() << " / " << integrator.getNumResidues() << "\n"
          << "    Real T: " << integrator.getTemperature() << ", Drude T: " << integrator.getDrudeTemperature() << "\n"
          << "    Real coupling Time: " << integrator.getCouplingTime() << ", Drude coupling Time: " << integrator.getDrudeCouplingTime() << "\n";
-    for (int i=0; i< numTempGroups+2; i++) {
+    for (int i = 0; i < numTempGroups + 2; i++) {
         cout << "    NkbT[" << i << "]: " << tempGroupNkbT[i] << ", etaMass[" << i << "]: " << etaMass[i][0] << ", DOF[" << i << "]: " << tempGroupDof[i] << "\n";
     }
     cout << "    Loops per NH Step: " << integrator.getLoopsPerStep() << ", Num NH Chain: " << integrator.getNumNHChains() << ", useDrudeNHChains: " << integrator.getUseDrudeNHChains() << "\n"
-         << "    Num Temperature groups: " << numTempGroups << "\n"
-         << "    Use COM Temperature group: " << integrator.getUseCOMTempGroup() << "\n";
+         << "    Num Temperature groups: " << numTempGroups << ", Use COM Temperature group: " << integrator.getUseCOMTempGroup() << "\n";
+
+    // Initialize CudaArray
+    particlesNH = CudaArray::create<int>(cu, max((int) particlesNHVec.size(), 1), "drudeParticlesNH");
+    residuesNH = CudaArray::create<int>(cu, max((int) residuesNHVec.size(), 1), "drudeResiduesNH");
+    normalParticlesNH = CudaArray::create<int>(cu, max((int) normalParticlesNHVec.size(), 1), "drudeNormalParticlesNH");
+    pairParticlesNH = CudaArray::create<int2>(cu, max((int) pairParticlesNHVec.size(), 1), "drudePairParticlesNH");
+    particleResId = CudaArray::create<int>(cu, max((int) particleResIdVec.size(), 1), "drudeParticleResId");
+    particleTempGroup = CudaArray::create<int>(cu, max((int) particleTempGroupVec.size(), 1), "drudeParticleTempGroups");
+    particlesInResidues = CudaArray::create<int2>(cu, max((int) particlesInResiduesVec.size(), 1), "drudeParticlesInResidues");
+    particlesSortedByResId = CudaArray::create<int>(cu, max((int) particlesSortedByResIdVec.size(), 1), "drudeParticlesSortedByResId");
+    kineticEnergyBufferNH = CudaArray::create<double>(cu, max((int) particlesNHVec.size() * (numTempGroups + 2), 1), "drudeKineticEnergyBufferNH");
+    kineticEnergiesNH = CudaArray::create<double>(cu, max(numTempGroups + 2, 1), "kineticEnergiesNH");
+    vscaleFactorsNH = CudaArray::create<double>(cu, max(numTempGroups + 2, 1), "drudeScaleFactorsNH");
+
+    if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision()) {
+        comVelm = CudaArray::create<double4>(cu, max(integrator.getNumResidues(), 1), "drudeComVelm");
+        normVelm = CudaArray::create<double4>(cu, numAtoms, "drudeNormVelm");
+    }
+    else {
+        comVelm = CudaArray::create<float4>(cu, max(integrator.getNumResidues(), 1), "drudeComVelm");
+        normVelm = CudaArray::create<float4>(cu, numAtoms, "drudeNormVelm");
+    }
+
+    if (!particlesNHVec.empty())
+        particlesNH->upload(particlesNHVec);
+    if (!residuesNHVec.empty())
+        residuesNH->upload(residuesNHVec);
+    if (!normalParticlesNHVec.empty())
+        normalParticlesNH->upload(normalParticlesNHVec);
+    if (!pairParticlesNHVec.empty())
+        pairParticlesNH->upload(pairParticlesNHVec);
+    if (!particleResIdVec.empty())
+        particleResId->upload(particleResIdVec);
+    if (!particleTempGroupVec.empty())
+        particleTempGroup->upload(particleTempGroupVec);
+    if (!particlesInResiduesVec.empty())
+        particlesInResidues->upload(particlesInResiduesVec);
+    if (!particlesSortedByResIdVec.empty())
+        particlesSortedByResId->upload(particlesSortedByResIdVec);
 
     // Create kernels.
-    map<string, string> definesNH;
-    definesNH["NUM_PARTICLES_NH"] = cu.intToString(particlesNHVec.size());
-    definesNH["NUM_RESIDUES_NH"] = cu.intToString(residuesNHVec.size());
-    definesNH["NUM_NORMAL_PARTICLES_NH"] = cu.intToString(normalParticlesNHVec.size());
-    definesNH["NUM_PAIRS_NH"] = cu.intToString(pairParticlesNHVec.size());
-    definesNH["NUM_TEMP_GROUPS"] = cu.intToString(numTempGroups);
+    map<string, string> defines;
+    defines["NUM_PARTICLES_NH"] = cu.intToString(particlesNHVec.size());
+    defines["NUM_RESIDUES_NH"] = cu.intToString(residuesNHVec.size());
+    defines["NUM_NORMAL_PARTICLES_NH"] = cu.intToString(normalParticlesNHVec.size());
+    defines["NUM_PAIRS_NH"] = cu.intToString(pairParticlesNHVec.size());
+    defines["NUM_TEMP_GROUPS"] = cu.intToString(numTempGroups);
 
     cout << "    NUM_ATOMS: " << numAtoms << ", PADDED_NUM_ATOMS: " << cu.getPaddedNumAtoms() << "\n"
          << "    NH NUM_NORMAL_PARTICLES: " << normalParticlesNHVec.size() << ", NUM_PAIRS: " << pairParticlesNHVec.size() << "\n"
          << "    numThreadBlocks: " << cu.getNumThreadBlocks() << " ThreadBlockSize: " << cu.ThreadBlockSize << "\n";
 
-    CUmodule moduleNH = cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::drudeNoseHoover, definesNH, "");
-    kernelCOMVel = cu.getKernel(moduleNH, "calcCOMVelocities");
-    kernelNormVel = cu.getKernel(moduleNH, "normalizeVelocities");
-    kernelKE = cu.getKernel(moduleNH, "computeNormalizedKineticEnergies");
-    kernelKESum = cu.getKernel(moduleNH, "sumNormalizedKineticEnergies");
-    kernelScale = cu.getKernel(moduleNH, "integrateDrudeNoseHooverVelocityScale");
+    CUmodule module = cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::drudeNoseHoover, defines, "");
+    kernelCOMVel = cu.getKernel(module, "calcCOMVelocities");
+    kernelNormVel = cu.getKernel(module, "normalizeVelocities");
+    kernelKE = cu.getKernel(module, "computeNormalizedKineticEnergies");
+    kernelKESum = cu.getKernel(module, "sumNormalizedKineticEnergies");
+    kernelScale = cu.getKernel(module, "integrateDrudeNoseHooverVelocityScale");
 
     cout << "CUDA modules for Nose-Hoover thermostat are created\n" << flush;
 }
@@ -516,6 +519,9 @@ void CudaModifyDrudeNoseKernel::calcGroupKineticEnergies(ContextImpl &context, c
    perform half-step update of chain thermostat variables
 ------------------------------------------------------------------------- */
 void CudaModifyDrudeNoseKernel::propagateNHChain(ContextImpl& context, const VVIntegrator& integrator) {
+    if (integrator.getDebugEnabled())
+        cout << "DrudeNoseModifier propagate Nose-Hoover chain\n" << flush;
+
     cu.setAsCurrent();
 
     double stepSize = integrator.getStepSize();
@@ -554,20 +560,20 @@ void CudaModifyDrudeNoseKernel::propagateNHChain(ContextImpl& context, const VVI
                       &particleTempGroup->getDevicePointer(),
                       &normalParticlesNH->getDevicePointer(),
                       &pairParticlesNH->getDevicePointer(),
-                      &kineticEnergyBuffer->getDevicePointer(),
+                      &kineticEnergyBufferNH->getDevicePointer(),
                       &residuesNH->getDevicePointer(),
                       &bufferSize};
     cu.executeKernel(kernelKE, argsKE, particlesNHVec.size());
 
     // Use only one threadBlock for this kernel because we use shared memory
-    void *argsKESum[] = {&kineticEnergyBuffer->getDevicePointer(),
-                         &kineticEnergies->getDevicePointer(),
+    void *argsKESum[] = {&kineticEnergyBufferNH->getDevicePointer(),
+                         &kineticEnergiesNH->getDevicePointer(),
                          &bufferSize};
     cu.executeKernel(kernelKESum, argsKESum, cu.ThreadBlockSize, cu.ThreadBlockSize,
-                     cu.ThreadBlockSize * (numTempGroups + 2) * kineticEnergyBuffer->getElementSize());
+                     cu.ThreadBlockSize * (numTempGroups + 2) * kineticEnergyBufferNH->getElementSize());
 
-    kineticEnergiesVec = std::vector<double>(numTempGroups + 2);
-    kineticEnergies->download(kineticEnergiesVec);
+    kineticEnergiesNHVec = std::vector<double>(numTempGroups + 2);
+    kineticEnergiesNH->download(kineticEnergiesNHVec);
 
 //    std::cout << cu.getStepCount() << " NH group kinetic energies: ";
 //    for (auto ke: kineticEnergiesVec) {
@@ -576,12 +582,12 @@ void CudaModifyDrudeNoseKernel::propagateNHChain(ContextImpl& context, const VVI
 //    std::cout<< "\n";
 
     // Calculate scaling factor for velocities for each temperature group using Nose-Hoover chain
-    vscaleFactorsVec = std::vector<double>(numTempGroups + 2, 1.0);
+    vscaleFactorsNHVec = std::vector<double>(numTempGroups + 2, 1.0);
     vector<double> expfac(numTempGroups+2);
     for (int itg = 0; itg < numTempGroups+2; itg++) {
         double kbT = itg < numTempGroups+1? realkbT: drudekbT;
         if (etaMass[itg][0]>0)
-            etaDotDot[itg][0] = (kineticEnergiesVec[itg] - tempGroupNkbT[itg]) / etaMass[itg][0];
+            etaDotDot[itg][0] = (kineticEnergiesNHVec[itg] - tempGroupNkbT[itg]) / etaMass[itg][0];
         for (int iloop = 0; iloop < numLoopsPerStep; iloop++) {
             if (itg < numTempGroups+1 || integrator.getUseDrudeNHChains()) {
                 for (int i = integrator.getNumNHChains() - 1; i > 0; i--) {
@@ -596,8 +602,8 @@ void CudaModifyDrudeNoseKernel::propagateNHChain(ContextImpl& context, const VVI
             etaDot[itg][0] += etaDotDot[itg][0] * dtc4;
             etaDot[itg][0] *= expfac[itg];
 
-            vscaleFactorsVec[itg] *= exp(-dtc2 * etaDot[itg][0]);
-            kineticEnergiesVec[itg] *= exp(-dtc * etaDot[itg][0]);
+            vscaleFactorsNHVec[itg] *= exp(-dtc2 * etaDot[itg][0]);
+            kineticEnergiesNHVec[itg] *= exp(-dtc * etaDot[itg][0]);
             if (itg < numTempGroups +1 || integrator.getUseDrudeNHChains()) {
                 for (int i = 0; i < integrator.getNumNHChains(); i++) {
                     eta[itg][i] += dtc2 * etaDot[itg][i];
@@ -605,7 +611,7 @@ void CudaModifyDrudeNoseKernel::propagateNHChain(ContextImpl& context, const VVI
             }
 
             if (etaMass[itg][0]>0)
-                etaDotDot[itg][0] = (kineticEnergiesVec[itg] - tempGroupNkbT[itg]) / etaMass[itg][0];
+                etaDotDot[itg][0] = (kineticEnergiesNHVec[itg] - tempGroupNkbT[itg]) / etaMass[itg][0];
 
             etaDot[itg][0] *= expfac[itg];
             etaDot[itg][0] += etaDotDot[itg][0] * dtc4;
@@ -629,16 +635,19 @@ void CudaModifyDrudeNoseKernel::propagateNHChain(ContextImpl& context, const VVI
 //    std::cout<< "\n";
 }
 
-void CudaModifyDrudeNoseKernel::scaleVelocity(ContextImpl& context) {
+void CudaModifyDrudeNoseKernel::scaleVelocity(ContextImpl& context, const VVIntegrator& integrator) {
+    if (integrator.getDebugEnabled())
+        cout << "DrudeNoseModifier scale velocity\n" << flush;
+
     cu.setAsCurrent();
 
-    vscaleFactors->upload(vscaleFactorsVec);
+    vscaleFactorsNH->upload(vscaleFactorsNHVec);
     void *argsChain[] = {&cu.getVelm().getDevicePointer(),
                          &normVelm->getDevicePointer(),
                          &normalParticlesNH->getDevicePointer(),
                          &pairParticlesNH->getDevicePointer(),
                          &particleTempGroup->getDevicePointer(),
-                         &vscaleFactors->getDevicePointer()};
+                         &vscaleFactorsNH->getDevicePointer()};
     cu.executeKernel(kernelScale, argsChain, particlesNHVec.size());
 }
 
@@ -652,6 +661,9 @@ CudaModifyDrudeLangevinKernel::~CudaModifyDrudeLangevinKernel() {
 }
 
 void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVIntegrator &integrator, const DrudeForce &force, Kernel& vvKernel) {
+    if (integrator.getDebugEnabled())
+        cout << "Initializing CudaModifyDrudeLangevinKernel...\n" << flush;
+
     vvStepKernel = &vvKernel.getAs<CudaIntegrateVVStepKernel>();
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
@@ -666,16 +678,15 @@ void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVInt
         int p, p1, p2, p3, p4;
         double charge, polarizability, aniso12, aniso34;
         force.getParticleParameters(i, p, p1, p2, p3, p4, charge, polarizability, aniso12, aniso34);
-
         if (integrator.isParticleLD(p)){
             particlesLDSet.erase(p);
             particlesLDSet.erase(p1);
             pairParticlesLDVec.push_back(make_int2(p, p1));
         }
     }
-
     normalParticlesLDVec.insert(normalParticlesLDVec.begin(), particlesLDSet.begin(), particlesLDSet.end());
-    normalParticlesLD = CudaArray::create<int>(cu, max((int) normalParticlesLDVec.size(), 1), "drudeNormalParticlesLD");
+
+    normalParticlesLD = CudaArray::create<int>(cu, max((int) normalParticlesLDVec.size(), 1), "normalParticlesLD");
     pairParticlesLD = CudaArray::create<int2>(cu, max((int) pairParticlesLDVec.size(), 1), "drudePairParticlesLD");
 
     if (!normalParticlesLDVec.empty())
@@ -683,16 +694,19 @@ void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVInt
     if (!pairParticlesLDVec.empty())
         pairParticlesLD->upload(pairParticlesLDVec);
 
-    map<string, string> definesExtra;
-    definesExtra["NUM_NORMAL_PARTICLES_LD"] = cu.intToString(normalParticlesLDVec.size());
-    definesExtra["NUM_PAIRS_LD"] = cu.intToString(pairParticlesLDVec.size());
-    CUmodule moduleExtra = cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::drudeLangevin, definesExtra, "");
-    kernelApplyLangevin = cu.getKernel(moduleExtra, "addExtraForceDrudeLangevin");
+    map<string, string> defines;
+    defines["NUM_NORMAL_PARTICLES_LD"] = cu.intToString(normalParticlesLDVec.size());
+    defines["NUM_PAIRS_LD"] = cu.intToString(pairParticlesLDVec.size());
+    CUmodule module = cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::drudeLangevin, defines, "");
+    kernelApplyLangevin = cu.getKernel(module, "addExtraForceDrudeLangevin");
 
     cout << "CUDA modules for LangevinModifier are created\n" << flush;
 }
 
 void CudaModifyDrudeLangevinKernel::applyLangevinForce(ContextImpl& context, const VVIntegrator& integrator) {
+    if (integrator.getDebugEnabled())
+        cout << "CudaModifyDrudeLangevinKernel apply Langevin force\n" << flush;
+
     cu.setAsCurrent();
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 
@@ -743,12 +757,17 @@ CudaModifyImageChargeKernel::~CudaModifyImageChargeKernel() {
 }
 
 void CudaModifyImageChargeKernel::initialize(const System& system, const VVIntegrator& integrator) {
+    if (integrator.getDebugEnabled())
+        cout << "Initializing CudaModifyImageChargeKernel...\n" << flush;
+
     cu.getPlatformData().initializeContexts(system);
 
     // Identify particle pairs and ordinary particles.
 
+    imagePairsVec = std::vector<int2>(0);
     for (auto pair: integrator.getImagePairs())
         imagePairsVec.push_back(make_int2(pair.first, pair.second));
+
     imagePairs = CudaArray::create<int2>(cu, max((int) imagePairsVec.size(), 1), "imagePairs");
     if (!imagePairsVec.empty())
         imagePairs->upload(imagePairsVec);
@@ -763,6 +782,9 @@ void CudaModifyImageChargeKernel::initialize(const System& system, const VVInteg
 }
 
 void CudaModifyImageChargeKernel::updateImagePositions(ContextImpl& context, const VVIntegrator& integrator) {
+    if (integrator.getDebugEnabled())
+        cout << "CudaModifyImageChargeKernel update image positions\n" << flush;
+
     cu.setAsCurrent();
 
     /**
@@ -797,6 +819,9 @@ CudaModifyElectricFieldKernel::~CudaModifyElectricFieldKernel() {
 }
 
 void CudaModifyElectricFieldKernel::initialize(const System &system, const VVIntegrator &integrator, Kernel& vvKernel) {
+    if (integrator.getDebugEnabled())
+        cout << "Initializing CudaModifyElectricFieldKernel...\n" << flush;
+
     vvStepKernel = &vvKernel.getAs<CudaIntegrateVVStepKernel>();
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
@@ -807,17 +832,20 @@ void CudaModifyElectricFieldKernel::initialize(const System &system, const VVInt
     if (!particlesElectrolyteVec.empty())
         particlesElectrolyte->upload(particlesElectrolyteVec);
 
-    map<string, string> definesExtra;
-    definesExtra["NUM_ATOMS"] = cu.intToString(cu.getNumAtoms());
-    definesExtra["PADDED_NUM_ATOMS"] = cu.intToString(cu.getPaddedNumAtoms());
-    definesExtra["NUM_PARTICLES_ELECTROLYTE"] = cu.intToString(particlesElectrolyteVec.size());
-    CUmodule moduleExtra = cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::electricField, definesExtra, "");
-    kernelApplyElectricForce = cu.getKernel(moduleExtra, "addExtraForceElectricField");
+    map<string, string> defines;
+    defines["NUM_ATOMS"] = cu.intToString(cu.getNumAtoms());
+    defines["PADDED_NUM_ATOMS"] = cu.intToString(cu.getPaddedNumAtoms());
+    defines["NUM_PARTICLES_ELECTROLYTE"] = cu.intToString(particlesElectrolyteVec.size());
+    CUmodule module = cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::electricField, defines, "");
+    kernelApplyElectricForce = cu.getKernel(module, "addExtraForceElectricField");
 
     cout << "CUDA modules for ElectricFieldModifier are created\n" << flush;
 }
 
 void CudaModifyElectricFieldKernel::applyElectricForce(ContextImpl& context, const VVIntegrator& integrator) {
+    if (integrator.getDebugEnabled())
+        cout << "CudaModifyElectricFieldKernel apply electric force\n" << flush;
+
     cu.setAsCurrent();
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 
@@ -852,28 +880,25 @@ void CudaModifyPeriodicPerturbationKernel::initialize(const System &system, cons
         cout << "Initializing PeriodicPerturbationModifier...\n" << flush;
 
     vvStepKernel = &vvKernel.getAs<CudaIntegrateVVStepKernel>();
-    if (integrator.getDebugEnabled())
-        cout << "IntegrateVVStepKernel found\n" << flush;
-
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
     cu.getIntegrationUtilities().initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
 
     numAtoms = cu.getNumAtoms();
-    map<string, string> definesPP;
-    definesPP["NUM_ATOMS"] = cu.intToString(numAtoms);
-    definesPP["PADDED_NUM_ATOMS"] = cu.intToString(cu.getPaddedNumAtoms());
-    CUmodule modulePP= cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::periodicPerturbation, definesPP, "");
-    kernelCos = cu.getKernel(modulePP, "addCosAcceleration");
-    kernelCalcBias = cu.getKernel(modulePP, "calcPeriodicVelocityBias");
-    kernelRemoveBias = cu.getKernel(modulePP, "removePeriodicVelocityBias");
-    kernelRestoreBias = cu.getKernel(modulePP, "restorePeriodicVelocityBias");
-    kernelSumV = cu.getKernel(modulePP, "sumV");
+    map<string, string> defines;
+    defines["NUM_ATOMS"] = cu.intToString(numAtoms);
+    defines["PADDED_NUM_ATOMS"] = cu.intToString(cu.getPaddedNumAtoms());
+    CUmodule module= cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::periodicPerturbation, defines, "");
+    kernelCos = cu.getKernel(module, "addCosAcceleration");
+    kernelCalcBias = cu.getKernel(module, "calcPeriodicVelocityBias");
+    kernelRemoveBias = cu.getKernel(module, "removePeriodicVelocityBias");
+    kernelRestoreBias = cu.getKernel(module, "restorePeriodicVelocityBias");
+    kernelSumV = cu.getKernel(module, "sumV");
 
     if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision())
-        vMaxBuffer = CudaArray::create<double>(cu, numAtoms, "periodicPerturbationVBuffer");
+        vMaxBuffer = CudaArray::create<double>(cu, numAtoms, "periodicPerturbationVMaxBuffer");
     else
-        vMaxBuffer = CudaArray::create<float>(cu, numAtoms, "periodicPerturbationVBuffer");
+        vMaxBuffer = CudaArray::create<float>(cu, numAtoms, "periodicPerturbationVMaxBuffer");
 
     double massTotal = 0;
     for (int i = 0; i < numAtoms; i++)
@@ -884,6 +909,9 @@ void CudaModifyPeriodicPerturbationKernel::initialize(const System &system, cons
 }
 
 void CudaModifyPeriodicPerturbationKernel::applyCosForce(ContextImpl& context, const VVIntegrator& integrator) {
+    if (integrator.getDebugEnabled())
+        cout << "PeriodicPerturbationModifier apply cosine acceleration force\n" << flush;
+
     cu.setAsCurrent();
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 
@@ -905,6 +933,9 @@ void CudaModifyPeriodicPerturbationKernel::applyCosForce(ContextImpl& context, c
 }
 
 void CudaModifyPeriodicPerturbationKernel::calcVelocityBias(ContextImpl& context, const VVIntegrator& integrator) {
+    if (integrator.getDebugEnabled())
+        cout << "PeriodicPerturbationModifier calculate velocity bias\n" << flush;
+
     cu.setAsCurrent();
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 
@@ -927,6 +958,9 @@ void CudaModifyPeriodicPerturbationKernel::removeVelocityBias(ContextImpl& conte
     cu.setAsCurrent();
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 
+    if (integrator.getDebugEnabled())
+        cout << "PeriodicPerturbationModifier remove velocity bias\n" << flush;
+
     void *args1[] = {&cu.getPosq().getDevicePointer(),
                      &cu.getVelm().getDevicePointer(),
                      &vMaxBuffer->getDevicePointer(),
@@ -935,6 +969,9 @@ void CudaModifyPeriodicPerturbationKernel::removeVelocityBias(ContextImpl& conte
 }
 
 void CudaModifyPeriodicPerturbationKernel::restoreVelocityBias(ContextImpl& context, const VVIntegrator& integrator) {
+    if (integrator.getDebugEnabled())
+        cout << "PeriodicPerturbationModifier restore velocity bias\n" << flush;
+
     cu.setAsCurrent();
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 
@@ -946,6 +983,9 @@ void CudaModifyPeriodicPerturbationKernel::restoreVelocityBias(ContextImpl& cont
 }
 
 void CudaModifyPeriodicPerturbationKernel::calcViscosity(ContextImpl& context, const VVIntegrator& integrator, double& vMax, double& invVis) {
+    if (integrator.getDebugEnabled())
+        cout << "PeriodicPerturbationModifier calculate viscosity\n" << flush;
+
     cu.setAsCurrent();
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 

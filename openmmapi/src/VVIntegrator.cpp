@@ -258,7 +258,7 @@ void VVIntegrator::step(int steps) {
                 ppKernel.getAs<ModifyPeriodicPerturbationKernel>().removeVelocityBias(*context, *this);
             }
             nhKernel.getAs<ModifyDrudeNoseKernel>().propagateNHChain(*context, *this);
-            nhKernel.getAs<ModifyDrudeNoseKernel>().scaleVelocity(*context);
+            nhKernel.getAs<ModifyDrudeNoseKernel>().scaleVelocity(*context, *this);
             if (cosAcceleration != 0){
                 ppKernel.getAs<ModifyPeriodicPerturbationKernel>().restoreVelocityBias(*context, *this);
             }
@@ -291,7 +291,7 @@ void VVIntegrator::step(int steps) {
                 ppKernel.getAs<ModifyPeriodicPerturbationKernel>().removeVelocityBias(*context, *this);
             }
             nhKernel.getAs<ModifyDrudeNoseKernel>().propagateNHChain(*context, *this);
-            nhKernel.getAs<ModifyDrudeNoseKernel>().scaleVelocity(*context);
+            nhKernel.getAs<ModifyDrudeNoseKernel>().scaleVelocity(*context, *this);
             if (cosAcceleration != 0){
                 ppKernel.getAs<ModifyPeriodicPerturbationKernel>().restoreVelocityBias(*context, *this);
             }

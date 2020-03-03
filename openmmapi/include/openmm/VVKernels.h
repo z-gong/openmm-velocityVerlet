@@ -124,7 +124,7 @@ public:
          * @param context        the context in which to execute this kernel
          * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
          */
-        virtual void scaleVelocity(ContextImpl& context) = 0;
+        virtual void scaleVelocity(ContextImpl& context, const VVIntegrator& integrator) = 0;
     };
 
 /**

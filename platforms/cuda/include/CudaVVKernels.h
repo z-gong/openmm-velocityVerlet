@@ -137,7 +137,7 @@ private:
          * @param context        the context in which to execute this kernel
          * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
          */
-        void scaleVelocity(ContextImpl &context);
+        void scaleVelocity(ContextImpl &context, const VVIntegrator& integrator);
 
     private:
         CudaContext &cu;
@@ -148,15 +148,15 @@ private:
         CudaArray *residuesNH;
         CudaArray *normalParticlesNH;
         CudaArray *pairParticlesNH;
-        CudaArray *vscaleFactors;
+        CudaArray *vscaleFactorsNH;
         CudaArray *particleResId;
         CudaArray *particleTempGroup;
         CudaArray *particlesInResidues;
         CudaArray *particlesSortedByResId;
         CudaArray *comVelm;
         CudaArray *normVelm;
-        CudaArray *kineticEnergyBuffer;
-        CudaArray *kineticEnergies; // 2 * kinetic energy
+        CudaArray *kineticEnergyBufferNH;
+        CudaArray *kineticEnergiesNH; // 2 * kinetic energy
         std::vector<std::vector<double> > etaMass;
         std::vector<std::vector<double> > eta;
         std::vector<std::vector<double> > etaDot;
@@ -169,8 +169,8 @@ private:
         std::vector<int> normalParticlesNHVec;
         std::vector<int2> pairParticlesNHVec;
         std::vector<double> tempGroupNkbT;
-        std::vector<double> vscaleFactorsVec;
-        std::vector<double> kineticEnergiesVec; // 2 * kinetic energy
+        std::vector<double> vscaleFactorsNHVec;
+        std::vector<double> kineticEnergiesNHVec; // 2 * kinetic energy
         CUfunction kernelKE, kernelKESum, kernelScale, kernelNormVel, kernelCOMVel;
     };
 
