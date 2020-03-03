@@ -47,10 +47,8 @@ using namespace std;
 
 
 CudaIntegrateVVStepKernel::~CudaIntegrateVVStepKernel() {
-    if (forceExtra != NULL)
-        delete forceExtra;
-    if (drudePairs != NULL)
-        delete drudePairs;
+    delete forceExtra;
+    delete drudePairs;
 }
 
 void CudaIntegrateVVStepKernel::initialize(const System& system, const VVIntegrator& integrator, const DrudeForce& force) {
@@ -211,23 +209,10 @@ void CudaIntegrateVVStepKernel::secondIntegrate(ContextImpl &context, const VVIn
     cu.setAsCurrent();
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 
-    // Compute integrator coefficients.
+    // Create appropriate pointer for the precision mode.
 
     double stepSize = integrator.getStepSize();
     double fscale = 0.5 * stepSize / (double) 0x100000000;
-    if (stepSize != prevStepSize) {
-        if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision()) {
-            double2 ss = make_double2(0, stepSize);
-            integration.getStepSize().upload(&ss);
-        } else {
-            float2 ss = make_float2(0, (float) stepSize);
-            integration.getStepSize().upload(&ss);
-        }
-        prevStepSize = stepSize;
-    }
-
-    // Create appropriate pointer for the precision mode.
-
     float fscaleFloat = (float) fscale;
     void *fscalePtr;
     if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision()) {
@@ -271,32 +256,19 @@ double CudaIntegrateVVStepKernel::computeKineticEnergy(ContextImpl& context, con
 }
 
 CudaModifyDrudeNoseKernel::~CudaModifyDrudeNoseKernel() {
-    if (particlesNH != NULL)
-        delete particlesNH;
-    if (residuesNH != NULL)
-        delete residuesNH;
-    if (normalParticlesNH != NULL)
-        delete normalParticlesNH;
-    if (pairParticlesNH != NULL)
-        delete pairParticlesNH;
-    if (vscaleFactorsNH != NULL)
-        delete vscaleFactorsNH;
-    if (particleResId != NULL)
-        delete particleResId;
-    if (particleTempGroup != NULL)
-        delete particleTempGroup;
-    if (particlesInResidues != NULL)
-        delete particlesInResidues;
-    if (particlesSortedByResId != NULL)
-        delete particlesSortedByResId;
-    if (comVelm != NULL)
-        delete comVelm;
-    if (normVelm != NULL)
-        delete normVelm;
-    if (kineticEnergyBufferNH != NULL)
-        delete kineticEnergyBufferNH;
-    if (kineticEnergiesNH != NULL)
-        delete kineticEnergiesNH;
+    delete particlesNH;
+    delete residuesNH;
+    delete normalParticlesNH;
+    delete pairParticlesNH;
+    delete particleResId;
+    delete particleTempGroup;
+    delete particlesInResidues;
+    delete particlesSortedByResId;
+    delete comVelm;
+    delete normVelm;
+    delete kineticEnergyBufferNH;
+    delete kineticEnergiesNH;
+    delete vscaleFactorsNH;
 }
 
 void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegrator &integrator, const DrudeForce &force) {
@@ -657,12 +629,8 @@ void CudaModifyDrudeNoseKernel::scaleVelocity(ContextImpl& context, const VVInte
 }
 
 CudaModifyDrudeLangevinKernel::~CudaModifyDrudeLangevinKernel() {
-    if (particlesLD != NULL)
-        delete particlesLD;
-    if (normalParticlesLD != NULL)
-        delete normalParticlesLD;
-    if (pairParticlesLD != NULL)
-        delete pairParticlesLD;
+    delete normalParticlesLD;
+    delete pairParticlesLD;
 }
 
 void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVIntegrator &integrator, const DrudeForce &force, Kernel& vvKernel) {
@@ -759,8 +727,7 @@ void CudaModifyDrudeLangevinKernel::applyLangevinForce(ContextImpl& context, con
 }
 
 CudaModifyImageChargeKernel::~CudaModifyImageChargeKernel() {
-    if (imagePairs != NULL)
-        delete imagePairs;
+    delete imagePairs;
 }
 
 void CudaModifyImageChargeKernel::initialize(const System& system, const VVIntegrator& integrator) {
@@ -823,8 +790,7 @@ void CudaModifyImageChargeKernel::updateImagePositions(ContextImpl& context, con
 }
 
 CudaModifyElectricFieldKernel::~CudaModifyElectricFieldKernel() {
-    if (particlesElectrolyte != NULL)
-        delete particlesElectrolyte;
+    delete particlesElectrolyte;
 }
 
 void CudaModifyElectricFieldKernel::initialize(const System &system, const VVIntegrator &integrator, Kernel& vvKernel) {
@@ -883,8 +849,7 @@ void CudaModifyElectricFieldKernel::applyElectricForce(ContextImpl& context, con
 }
 
 CudaModifyPeriodicPerturbationKernel::~CudaModifyPeriodicPerturbationKernel() {
-    if (vMaxBuffer != NULL)
-        delete vMaxBuffer;
+    delete vMaxBuffer;
 }
 
 void CudaModifyPeriodicPerturbationKernel::initialize(const System &system, const VVIntegrator &integrator, Kernel& vvKernel) {
@@ -901,8 +866,8 @@ void CudaModifyPeriodicPerturbationKernel::initialize(const System &system, cons
     defines["NUM_ATOMS"] = cu.intToString(numAtoms);
     defines["PADDED_NUM_ATOMS"] = cu.intToString(cu.getPaddedNumAtoms());
     CUmodule module= cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::periodicPerturbation, defines, "");
-    kernelCos = cu.getKernel(module, "addCosAcceleration");
-    kernelCalcBias = cu.getKernel(module, "calcPeriodicVelocityBias");
+    kernelAccelerate = cu.getKernel(module, "addCosAcceleration");
+    kernelCalcV = cu.getKernel(module, "calcPeriodicVelocityBias");
     kernelRemoveBias = cu.getKernel(module, "removePeriodicVelocityBias");
     kernelRestoreBias = cu.getKernel(module, "restorePeriodicVelocityBias");
     kernelSumV = cu.getKernel(module, "sumV");
@@ -943,7 +908,7 @@ void CudaModifyPeriodicPerturbationKernel::applyCosForce(ContextImpl& context, c
                      &vvStepKernel->getForceExtra()->getDevicePointer(),
                      accelerationPtr,
                      cu.getInvPeriodicBoxSizePointer()};
-    cu.executeKernel(kernelCos, args1, numAtoms);
+    cu.executeKernel(kernelAccelerate, args1, numAtoms);
 }
 
 void CudaModifyPeriodicPerturbationKernel::calcVelocityBias(ContextImpl& context, const VVIntegrator& integrator) {
@@ -957,7 +922,7 @@ void CudaModifyPeriodicPerturbationKernel::calcVelocityBias(ContextImpl& context
                      &cu.getVelm().getDevicePointer(),
                      &vMaxBuffer->getDevicePointer(),
                      cu.getInvPeriodicBoxSizePointer()};
-    cu.executeKernel(kernelCalcBias, args1, numAtoms);
+    cu.executeKernel(kernelCalcV, args1, numAtoms);
 
     int bufferSize = vMaxBuffer->getSize();
     // Use only one threadBlock for this kernel because we use shared memory

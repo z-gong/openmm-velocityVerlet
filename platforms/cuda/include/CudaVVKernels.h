@@ -45,7 +45,7 @@ namespace OpenMM {
 class CudaIntegrateVVStepKernel : public IntegrateVVStepKernel {
 public:
     CudaIntegrateVVStepKernel(std::string name, const Platform &platform, CudaContext &cu) :
-            IntegrateVVStepKernel(name, platform), cu(cu) {
+            IntegrateVVStepKernel(name, platform), cu(cu), forceExtra(NULL), drudePairs(NULL) {
     }
     ~CudaIntegrateVVStepKernel();
     /**
@@ -103,7 +103,12 @@ private:
     class CudaModifyDrudeNoseKernel : public ModifyDrudeNoseKernel {
     public:
         CudaModifyDrudeNoseKernel(std::string name, const Platform &platform, CudaContext &cu) :
-                ModifyDrudeNoseKernel(name, platform), cu(cu) {
+                ModifyDrudeNoseKernel(name, platform), cu(cu),
+                particlesNH(NULL), residuesNH(NULL), normalParticlesNH(NULL), pairParticlesNH(NULL),
+                particleResId(NULL), particleTempGroup(NULL),
+                particlesInResidues(NULL), particlesSortedByResId(NULL),
+                comVelm(NULL), normVelm(NULL), kineticEnergyBufferNH(NULL),
+                kineticEnergiesNH(NULL), vscaleFactorsNH(NULL) {
         }
 
         ~CudaModifyDrudeNoseKernel();
@@ -141,14 +146,12 @@ private:
 
     private:
         CudaContext &cu;
-        double drudekbT, realkbT;
         int numAtoms, numTempGroups;
-        std::vector<int> particlesNHVec, residuesNHVec;
+        double realkbT, drudekbT;
         CudaArray *particlesNH;
         CudaArray *residuesNH;
         CudaArray *normalParticlesNH;
         CudaArray *pairParticlesNH;
-        CudaArray *vscaleFactorsNH;
         CudaArray *particleResId;
         CudaArray *particleTempGroup;
         CudaArray *particlesInResidues;
@@ -157,20 +160,18 @@ private:
         CudaArray *normVelm;
         CudaArray *kineticEnergyBufferNH;
         CudaArray *kineticEnergiesNH; // 2 * kinetic energy
-        std::vector<std::vector<double> > etaMass;
-        std::vector<std::vector<double> > eta;
-        std::vector<std::vector<double> > etaDot;
-        std::vector<std::vector<double> > etaDotDot;
-        std::vector<double> tempGroupDof;
-        std::vector<int> particleResIdVec;
-        std::vector<int2> particlesInResiduesVec;
-        std::vector<int> particlesSortedByResIdVec;
-        std::vector<int> particleTempGroupVec;
+        CudaArray *vscaleFactorsNH;
+        std::vector<double> tempGroupDof, tempGroupNkbT;
+        std::vector<std::vector<double> > etaMass, eta, etaDot, etaDotDot;
+        std::vector<int> particlesNHVec, residuesNHVec;
         std::vector<int> normalParticlesNHVec;
         std::vector<int2> pairParticlesNHVec;
-        std::vector<double> tempGroupNkbT;
-        std::vector<double> vscaleFactorsNHVec;
+        std::vector<int> particleResIdVec;
+        std::vector<int> particleTempGroupVec;
+        std::vector<int2> particlesInResiduesVec;
+        std::vector<int> particlesSortedByResIdVec;
         std::vector<double> kineticEnergiesNHVec; // 2 * kinetic energy
+        std::vector<double> vscaleFactorsNHVec;
         CUfunction kernelKE, kernelKESum, kernelScale, kernelNormVel, kernelCOMVel;
     };
 
@@ -180,7 +181,8 @@ private:
     class CudaModifyDrudeLangevinKernel : public ModifyDrudeLangevinKernel {
     public:
         CudaModifyDrudeLangevinKernel(std::string name, const Platform &platform, CudaContext &cu) :
-                ModifyDrudeLangevinKernel(name, platform), cu(cu) {
+                ModifyDrudeLangevinKernel(name, platform), cu(cu),
+                normalParticlesLD(NULL), pairParticlesLD(NULL) {
         }
 
         ~CudaModifyDrudeLangevinKernel();
@@ -206,7 +208,6 @@ private:
         CudaContext &cu;
         std::vector<int> normalParticlesLDVec;
         std::vector<int2> pairParticlesLDVec;
-        CudaArray *particlesLD;
         CudaArray *normalParticlesLD;
         CudaArray *pairParticlesLD;
         CUfunction kernelApplyLangevin;
@@ -218,7 +219,7 @@ private:
     class CudaModifyImageChargeKernel : public ModifyImageChargeKernel {
     public:
         CudaModifyImageChargeKernel(std::string name, const Platform &platform, CudaContext &cu)
-                : ModifyImageChargeKernel(name, platform), cu(cu) {
+                : ModifyImageChargeKernel(name, platform), cu(cu), imagePairs(NULL) {
         }
 
         ~CudaModifyImageChargeKernel();
@@ -252,7 +253,7 @@ private:
     class CudaModifyElectricFieldKernel: public ModifyElectricFieldKernel {
     public:
         CudaModifyElectricFieldKernel(std::string name, const Platform &platform, CudaContext &cu)
-        : ModifyElectricFieldKernel(name, platform), cu(cu) {
+        : ModifyElectricFieldKernel(name, platform), cu(cu), particlesElectrolyte(NULL) {
         }
 
         ~CudaModifyElectricFieldKernel();
@@ -285,7 +286,7 @@ private:
     class CudaModifyPeriodicPerturbationKernel: public ModifyPeriodicPerturbationKernel{
     public:
         CudaModifyPeriodicPerturbationKernel(std::string name, const Platform &platform, CudaContext &cu) :
-                ModifyPeriodicPerturbationKernel(name, platform), cu(cu) {
+                ModifyPeriodicPerturbationKernel(name, platform), cu(cu), vMaxBuffer(NULL) {
         }
         ~CudaModifyPeriodicPerturbationKernel();
         /**
@@ -332,13 +333,9 @@ private:
         CudaIntegrateVVStepKernel* vvStepKernel;
         CudaContext& cu;
         int numAtoms;
-        CUfunction kernelCos;
-        CUfunction kernelCalcBias;
-        CUfunction kernelSumV;
-        CUfunction kernelRemoveBias;
-        CUfunction kernelRestoreBias;
-        CudaArray* vMaxBuffer;
         double invMassTotal;
+        CudaArray* vMaxBuffer;
+        CUfunction kernelAccelerate, kernelCalcV, kernelSumV, kernelRemoveBias, kernelRestoreBias;
     };
 
 } // namespace OpenMM
