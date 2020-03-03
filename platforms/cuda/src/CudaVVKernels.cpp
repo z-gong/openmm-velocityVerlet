@@ -303,9 +303,10 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 
     numAtoms = cu.getNumAtoms();
-    numTempGroups = integrator.getNumTempGroups();
     particlesNHVec = integrator.getParticlesNH();
     residuesNHVec = integrator.getResiduesNH();
+    numTempGroups = integrator.getNumTempGroups();
+    tempGroupDof = std::vector<double>(numTempGroups+2, 0.0);
 
     /**
      * By default, all atoms are in the first temperature group
@@ -317,6 +318,8 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
      */
 
     // Identify particles, pairs and residues
+    if (integrator.getDebugEnabled())
+        cout << "Identifying particles and DOFs...\n" << flush;
 
     int id_start = 0;
     for (int resid =0; resid < integrator.getNumResidues(); resid++){
@@ -409,12 +412,14 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
         tempGroupDof[i] = max(tempGroupDof[i], (double) 0);
 
     // Initialize NH chain particles
+    if (integrator.getDebugEnabled())
+        cout << "Initializing NH chain particles...\n" << flush;
+
     int numNHChains = integrator.getNumNHChains();
     etaMass = std::vector<vector<double> >(numTempGroups+2, std::vector<double>(numNHChains, 0.0));
     eta = std::vector<vector<double> >(numTempGroups+2, std::vector<double>(numNHChains, 0.0));
     etaDot = std::vector<vector<double> >(numTempGroups+2, std::vector<double>(numNHChains+1, 0.0));
     etaDotDot = std::vector<vector<double> >(numTempGroups+2, std::vector<double>(numNHChains, 0.0));
-    tempGroupDof = std::vector<double>(numTempGroups+2, 0.0);
 
     realkbT = BOLTZ * integrator.getTemperature();
     drudekbT = BOLTZ * integrator.getDrudeTemperature();
