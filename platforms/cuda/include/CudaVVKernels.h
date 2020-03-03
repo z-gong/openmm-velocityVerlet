@@ -192,7 +192,7 @@ private:
          * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
          * @param force      the DrudeForce to get particle parameters from
          */
-        void initialize(const System &system, const VVIntegrator &integrator, const DrudeForce &force, const Kernel& vvKernel);
+        void initialize(const System &system, const VVIntegrator &integrator, const DrudeForce &force, Kernel& vvKernel);
 
         /**
          * Calculate the Langevin force for particles thermolized by Langevin dynamics
@@ -202,7 +202,7 @@ private:
         void applyLangevinForce(ContextImpl &context, const VVIntegrator &integrator);
 
     private:
-        CudaIntegrateVVStepKernel& vvStepKernel;
+        CudaIntegrateVVStepKernel* vvStepKernel;
         CudaContext &cu;
         int numAtoms;
         std::vector<int> normalParticlesLDVec;
@@ -265,7 +265,7 @@ private:
          * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
          * @param force      the DrudeForce to get particle parameters from
          */
-        void initialize(const System& system, const VVIntegrator& integrator, const Kernel& vvKernel);
+        void initialize(const System& system, const VVIntegrator& integrator, Kernel& vvKernel);
         /**
          * Execute the kernel.
          *
@@ -275,7 +275,7 @@ private:
         void applyElectricForce(ContextImpl& context, const VVIntegrator& integrator);
 
     private:
-        CudaIntegrateVVStepKernel& vvStepKernel;
+        CudaIntegrateVVStepKernel* vvStepKernel;
         CudaContext &cu;
         CudaArray *particlesElectrolyte;
         CUfunction kernelApplyElectricForce;
@@ -297,7 +297,7 @@ private:
          * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
          * @param force      the DrudeForce to get particle parameters from
          */
-        void initialize(const System& system, const VVIntegrator& integrator, const Kernel& vvKernel);
+        void initialize(const System& system, const VVIntegrator& integrator, Kernel& vvKernel);
         /**
          * Apply the periodic perturbation force for viscosity calculation
          * @param context
@@ -331,7 +331,7 @@ private:
          */
         void calcViscosity(ContextImpl& context, const VVIntegrator& integrator, double& vMax, double& invVis);
     private:
-        CudaIntegrateVVStepKernel& vvStepKernel;
+        CudaIntegrateVVStepKernel* vvStepKernel;
         CudaContext& cu;
         int numAtoms;
         CUfunction kernelCos;
