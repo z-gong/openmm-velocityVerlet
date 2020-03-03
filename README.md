@@ -22,7 +22,7 @@ The TGNH thermostat proposed by [Chang Yun Son et. al.](https://pubs.acs.org/doi
 thermolizes molecular translational degrees of freedom separately from atomic motions
 to ensure that the average temperature of molecular motion equals to preset value.
 
-#### Usage
+#### usage
 ```python
 from velocityverletplugin import VVIntegrator
 from simtk.unit import kelvin as K, picosecond as ps
@@ -39,7 +39,7 @@ For example, one want to simulate solid-liquid interface,
 this plugin can apply TGNH thermostat on liquid molecules,
 whereas Langevin thermostat on solid particles.
 
-#### Usage
+#### usage
 ```python
 from velocityverletplugin import VVIntegrator
 from simtk.unit import kelvin as K, picosecond as ps
@@ -63,7 +63,7 @@ Read [this article](https://doi.org/10.1021/acs.jced.9b00050)
 and [this article](https://www.sciencedirect.com/science/article/abs/pii/S0378381219302638)
 for more information.
 
-#### Usage
+#### usage
 ```python
 from velocityverletplugin import VVIntegrator
 from simtk.unit import kelvin as K, picosecond as ps, nanosecond as ns
@@ -78,7 +78,7 @@ print(integrator.getViscosity())
 [Image charge method](https://pubs.acs.org/doi/10.1021/acs.jpcc.9b06635)
 is an efficient approach to enforce constant voltage constraint for planar electrodes.
 
-#### Usage
+#### usage
 ```python
 from velocityverletplugin import VVIntegrator
 from simtk.unit import kelvin as K, picosecond as ps, nanosecond as ns
@@ -95,7 +95,7 @@ An external electric field along `z` direction can be applied for selected parti
 Note that external electric field can also be done by using `CustomExternalForce`.
 from simtk.unit import kelvin as K, picosecond as ps
 
-####usage
+#### usage
 ```python
 from velocityverletplugin import VVIntegrator
 from simtk.unit import kelvin as K, picosecond as ps, nanosecond as ns, volt
