@@ -668,7 +668,9 @@ void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVInt
     kernelApplyLangevin = cu.getKernel(module, "addExtraForceDrudeLangevin");
 
     cout << "CUDA modules for LangevinModifier are created\n"
-         << "    Num normal particles: " << normalParticlesLDVec.size() << ", Num Drude pairs: " << pairParticlesLDVec.size() << "\n";
+         << "    Num normal particles: " << normalParticlesLDVec.size() << ", Num Drude pairs: " << pairParticlesLDVec.size() << "\n"
+         << "    Real T: " << integrator.getTemperature() << " K, Drude T: " << integrator.getDrudeTemperature() << " K\n"
+         << "    Real friction: " << integrator.getFriction() << " /ps, Drude friction: " << integrator.getDrudeFriction() << " /ps\n";
 }
 
 void CudaModifyDrudeLangevinKernel::applyLangevinForce(ContextImpl& context, const VVIntegrator& integrator) {
@@ -746,7 +748,8 @@ void CudaModifyImageChargeKernel::initialize(const System& system, const VVInteg
     kernelImage = cu.getKernel(module, "updateImagePositions");
 
     cout << "CUDA modules for ImageChargeModifier are created\n"
-         << "    Num image pairs: " << imagePairsVec.size() << "\n";
+         << "    Num image pairs: " << imagePairsVec.size() << "\n"
+         << "    Mirror location (z): " << integrator.getMirrorLocation() << " nm\n";
 }
 
 void CudaModifyImageChargeKernel::updateImagePositions(ContextImpl& context, const VVIntegrator& integrator) {
@@ -808,7 +811,7 @@ void CudaModifyElectricFieldKernel::initialize(const System &system, const VVInt
 
     cout << "CUDA modules for ElectricFieldModifier are created\n"
          << "    Num electrolyte particles: " << particlesElectrolyteVec.size() << "\n"
-         << "    Electric field strength: " << integrator.getElectricField() * 6.241509629152651e21 << " V/nm\n";
+         << "    Electric field strength (z): " << integrator.getElectricField() * 6.241509629152651e21 << " V/nm\n";
 }
 
 void CudaModifyElectricFieldKernel::applyElectricForce(ContextImpl& context, const VVIntegrator& integrator) {
