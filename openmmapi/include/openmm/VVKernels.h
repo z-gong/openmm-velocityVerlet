@@ -59,7 +59,7 @@ public:
      * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
      * @param force      the DrudeForce to get particle parameters from
      */
-    virtual void initialize(const System& system, const VVIntegrator& integrator, const DrudeForce& force) = 0;
+    virtual void initialize(const System& system, const VVIntegrator& integrator, const DrudeForce* force) = 0;
     /**
      * Execute the kernel.
      *
@@ -103,7 +103,7 @@ public:
          * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
          * @param force      the DrudeForce to get particle parameters from
          */
-        virtual void initialize(const System& system, const VVIntegrator& integrator, const DrudeForce& force) = 0;
+        virtual void initialize(const System& system, const VVIntegrator& integrator, const DrudeForce* force) = 0;
         /**
          * Calculate the kinetic energies of temperature groups and propagate the NH chains
          *
@@ -111,13 +111,6 @@ public:
          * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
          */
         virtual void calcGroupKineticEnergies(ContextImpl& context, const VVIntegrator& integrator) = 0;
-        /**
-         * Calculate the kinetic energies of temperature groups and propagate the NH chains
-         *
-         * @param context        the context in which to execute this kernel
-         * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
-         */
-        virtual void propagateNHChain(ContextImpl& context, const VVIntegrator& integrator) = 0;
         /**
          * Scale the velocity based on the results of propagation of NH chains
          *
@@ -144,7 +137,7 @@ public:
          * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
          * @param force      the DrudeForce to get particle parameters from
          */
-        virtual void initialize(const System& system, const VVIntegrator& integrator, const DrudeForce& force, Kernel& vvKernel) = 0;
+        virtual void initialize(const System& system, const VVIntegrator& integrator, const DrudeForce* force, Kernel& vvKernel) = 0;
         /**
          * Execute the kernel.
          *

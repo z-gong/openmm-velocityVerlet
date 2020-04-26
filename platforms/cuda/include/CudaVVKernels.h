@@ -55,7 +55,7 @@ public:
      * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
      * @param force      the DrudeForce to get particle parameters from
      */
-    void initialize(const System& system, const VVIntegrator& integrator, const DrudeForce& force);
+    void initialize(const System& system, const VVIntegrator& integrator, const DrudeForce* force);
     /**
      * Perform first-half velocity-verlet integration
      *
@@ -120,7 +120,7 @@ private:
          * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
          * @param force      the DrudeForce to get particle parameters from
          */
-        void initialize(const System &system, const VVIntegrator &integrator, const DrudeForce &force);
+        void initialize(const System &system, const VVIntegrator &integrator, const DrudeForce* force);
         /**
          * Calculate the kinetic energies of temperature groups and propagate the NH chains
          *
@@ -128,13 +128,6 @@ private:
          * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
          */
         void calcGroupKineticEnergies(ContextImpl &context, const VVIntegrator &integrator);
-        /**
-         * Calculate the kinetic energies of temperature groups and propagate the NH chains
-         *
-         * @param context        the context in which to execute this kernel
-         * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
-         */
-        void propagateNHChain(ContextImpl &context, const VVIntegrator &integrator);
 
         /**
          * Scale the velocity based on the results of propagation of NH chains
@@ -146,14 +139,13 @@ private:
 
     private:
         CudaContext &cu;
-        int numAtoms, numTempGroups;
-        double realkbT, drudekbT;
+        int numAtoms;
+        double realKbT, drudeKbT;
         CudaArray *particlesNH;
         CudaArray *residuesNH;
         CudaArray *normalParticlesNH;
         CudaArray *pairParticlesNH;
         CudaArray *particleResId;
-        CudaArray *particleTempGroup;
         CudaArray *particlesInResidues;
         CudaArray *particlesSortedByResId;
         CudaArray *comVelm;
@@ -167,7 +159,6 @@ private:
         std::vector<int> normalParticlesNHVec;
         std::vector<int2> pairParticlesNHVec;
         std::vector<int> particleResIdVec;
-        std::vector<int> particleTempGroupVec;
         std::vector<int2> particlesInResiduesVec;
         std::vector<int> particlesSortedByResIdVec;
         std::vector<double> kineticEnergiesNHVec; // 2 * kinetic energy
@@ -194,7 +185,7 @@ private:
          * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
          * @param force      the DrudeForce to get particle parameters from
          */
-        void initialize(const System &system, const VVIntegrator &integrator, const DrudeForce &force, Kernel& vvKernel);
+        void initialize(const System &system, const VVIntegrator &integrator, const DrudeForce* force, Kernel& vvKernel);
 
         /**
          * Calculate the Langevin force for particles thermolized by Langevin dynamics

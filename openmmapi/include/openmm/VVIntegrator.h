@@ -57,19 +57,18 @@ namespace OpenMM {
 class OPENMM_EXPORT_DRUDE VVIntegrator : public Integrator {
 public:
     /**
-     * Create a DrudeNoseHooverIntegrator.
+     * Create a VVIntegrator with Nose-Hoover thermostat
      *
-     * @param temperature    the temperature of the main heat bath (in Kelvin)
-     * @param couplingTime  the characteristic time with which couples the system to the main heat bath (in picoseconds)
-     * @param drudeTemperature    the temperature of the heat bath applied to internal coordinates of Drude particles (in Kelvin)
-     * @param drudeCouplingTime  the characteristic time with which couples the system to the heat bath applied to internal coordinates of Drude particles (in picoseconds)
-     * @param stepSize       the step size with which to integrator the system (in picoseconds)
-     * @param loopsPerStep   the number of loops of NH velocity scaling per single step (integer)
-     * @param numNHChains    the number of Nose-Hoover chains (integer)
-     * @param useDrudeNHChains   whether to use the NH-Chain for Drude DOFs (bool)
+     * @param temperature        the temperature of the main heat bath (in Kelvin)
+     * @param Frequency          the characteristic frequency which couples the system to the main heat bath (in /picoseconds)
+     * @param drudeTemperature   the temperature of the heat bath applied to internal coordinates of Drude particles (in Kelvin)
+     * @param drudeFrequency     the characteristic frequency with which couples the system to the heat bath applied to internal coordinates of Drude particles (in /picoseconds)
+     * @param stepSize           the step size with which to integrator the system (in picoseconds)
+     * @param numNHChains        the number of Nose-Hoover chains (integer)
+     * @param loopsPerStep       the number of loops of NH velocity scaling per single step (integer)
      * @param useCOMTempGroup    whether to set molecular COM motion as a separate temperature group (bool)
      */
-    VVIntegrator(double temperature, double couplingTime, double drudeTemperature, double drudeCouplingTime, double stepSize, int loopsPerStep=1, int numNHChains=3, bool useDrudeNHChains=true, bool useCOMTempGroup=true);
+    VVIntegrator(double temperature, double frequency, double drudeTemperature, double drudeFrequency, double stepSize, int numNHChains=3, int loopsPerStep=1, bool useCOMTempGroup=false);
 
     virtual ~VVIntegrator();
     /**
@@ -94,8 +93,8 @@ public:
      *
      * @return the coupling time, measured in ps
      */
-    double getCouplingTime() const {
-        return couplingTime;
+    double getFrequency() const {
+        return frequency;
     }
     /**
      * Set the coupling time which determines how quickly the system is coupled to
@@ -103,8 +102,8 @@ public:
      *
      * @param tau    the coupling time, measured in ps
      */
-    void setCouplingTime(double tau) {
-        couplingTime = tau;
+    void setFrequency(double tau) {
+        frequency = tau;
     }
     /**
      * Get the temperature of the heat bath applied to internal coordinates of Drude particles (in Kelvin).
@@ -128,8 +127,8 @@ public:
      *
      * @return the coupling time, measured in ps
      */
-    double getDrudeCouplingTime() const {
-        return drudeCouplingTime;
+    double getDrudeFrequency() const {
+        return drudeFrequency;
     }
     /**
      * Set the coupling time which determines how quickly the internal coordinates of Drude particles
@@ -137,24 +136,8 @@ public:
      *
      * @param tau    the coupling time, measured in ps
      */
-    void setDrudeCouplingTime(double tau) {
-        drudeCouplingTime = tau;
-    }
-    /**
-     * Get the number of loops per Nose-Hoover propagation step
-     *
-     * @return
-     */
-    int getLoopsPerStep() const {
-        return loopsPerStep;
-    }
-    /**
-     * Set the number of loops per Nose-Hoover propagation step
-     *
-     * @param loops
-     */
-    void setLoopsPerStep(int loops) {
-        loopsPerStep= loops;
+    void setDrudeFrequency(double tau) {
+        drudeFrequency = tau;
     }
     /**
      * Get the number of Nose-Hoover chains (integer)
@@ -173,20 +156,20 @@ public:
         numNHChains = numChains;
     }
     /**
-     * Get whether to use Nose-Hoover chains for Drude DOFs
+     * Get the number of loops per Nose-Hoover propagation step
      *
      * @return
      */
-    bool getUseDrudeNHChains() const {
-        return useDrudeNHChains;
+    int getLoopsPerStep() const {
+        return loopsPerStep;
     }
     /**
-     * Set whether to use Nose-Hoover chains for Drude DOFs
+     * Set the number of loops per Nose-Hoover propagation step
      *
-     * @return
+     * @param loops
      */
-    void setUseDrudeNHChains(bool use) {
-        useDrudeNHChains = use;
+    void setLoopsPerStep(int loops) {
+        loopsPerStep= loops;
     }
     /**
      * Get whether to use COM Temperature group or not
@@ -199,6 +182,7 @@ public:
     /**
      * Set whether to use COM Temperature group or not (one should always use COM temp group)
      *
+     * @deprecated
      * @param useCOMGroup    boolean, whether to use COM temperature group or not
      */
     void setUseCOMTempGroup(bool use) {
@@ -220,32 +204,23 @@ public:
     };
     /**
      * Get the number of temperature groups for particles which independent thermal bath is used.
+     *
+     * @deprecated
      * @return the number of temperature groups for real d.o.f
      */
     int getNumTempGroups() const {
-        return tempGroups.size();
+        return 1;
     }
-    /**
-     * Add a new temperature group
-     *
-     * @return the index of the new temperature group that was added
-     */
-    int addTempGroup();
     /**
      * Get the temperature group of a real particle.
      *
+     * @deprecated
      * @param particle              the index of the particle for which to get parameters
      * @param[out] tempGroup        the index of the temperature group to which the particle is assigned
      */
-    void getParticleTempGroup(int particle, int& tempGroup) const;
-    /**
-     * Set the temperature group of a particle.
-     * Drude particles and particles within constraint should be assigned to the same temp group
-     *
-     * @param particle        the index within the System of the particle
-     * @param tempGroup       the index of temperature group for the partile to be assigned
-     */
-    void setParticleTempGroup(int particle, int tempGroup);
+    void getParticleTempGroup(int particle, int& tempGroup) const {
+        tempGroup = 0;
+    }
     /**
      * Thermolize this particle with Langevin thermostat instead of Nose-Hoover
      * @param particle The indice of particle to be themrostated by Langevin dynamics
@@ -427,18 +402,25 @@ public:
      */
     int getParticleResId(int particle) const;
     /**
-     * Get the strength of periodic perturbation acceleration for viscosity calculation
+     * Get the strength of cosine acceleration for viscosity calculation
      */
     double getCosAcceleration() const {
         return cosAcceleration;
     }
     /**
-     * Get the strength of periodic perturbation acceleration for viscosity calculation
+     * Set the strength of cosine acceleration for viscosity calculation
      * @param acceleration
      */
     void setCosAcceleration(double acceleration) {
         cosAcceleration = acceleration;
     }
+    /**
+     * Get the velocity scaling factor by propagating Nose-Hoover chain
+     * @param
+     */
+    void propagateNHChain(std::vector<double> &eta, std::vector<double> &eta_dot,
+                          std::vector<double> &eta_dotdot, std::vector<double> &eta_mass,
+                          double ke2, double ke2_target, double t_target, double &scale) const;
     /**
      * Get the velocity at z=0 and reciprocal viscosity because of the cos acceleration
      * @param
@@ -498,13 +480,11 @@ protected:
     }
 private:
     bool debugEnabled;
-    double temperature, couplingTime, drudeTemperature, drudeCouplingTime, maxDrudeDistance;
+    double temperature, frequency, drudeTemperature, drudeFrequency, maxDrudeDistance;
     int loopsPerStep, numNHChains;
-    bool useDrudeNHChains, useCOMTempGroup;
+    bool useCOMTempGroup;
     std::vector<int> particlesNH;
     std::vector<int> residuesNH;
-    std::vector<int> tempGroups;
-    std::vector<int> particleTempGroup;
     std::vector<int> particleResId;
     std::vector<double> residueMasses;
     std::vector<double> residueInvMasses;

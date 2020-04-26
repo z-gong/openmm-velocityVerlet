@@ -103,10 +103,11 @@ extern "C" __global__ void applyHardWallConstraints(real4 *__restrict__ posq,
             // The constraint has been violated, so make the inter-particle distance "bounce"
             // off the hard wall.
 
-            if (rInv*maxDrudeDistance < 0.5){
-                printf("ERROR: Drude pair %d-%d moved too far beyond hardwall constraint\n", particles.x, particles.y);
-                assert(0);
-            }
+            // TODO Should halt the kernel if Drude particles move too far away
+//            if (rInv*maxDrudeDistance < 0.5){
+//                printf("ERROR: Drude pair %d-%d moved too far beyond hardwall constraint\n", particles.x, particles.y);
+//                assert(0);
+//            }
 
             mixed4 bondDir = delta*rInv;
             mixed4 vel1 = velm[particles.x];

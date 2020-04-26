@@ -7,7 +7,7 @@ FOREACH(file ${CUDA_KERNELS})
     FILE(STRINGS ${file} file_content NEWLINE_CONSUME)
     # Replace all backslashes by double backslashes as they are being put in a C string.
     # Be careful not to replace the backslash before a semicolon as that is the CMAKE
-    # internal escaping of a semicolon to prevent it from acting as a list seperator.
+    # internal escaping of a semicolon to prevent it from acting as a list separator.
     STRING(REGEX REPLACE "\\\\([^;])" "\\\\\\\\\\1" file_content "${file_content}")
     # Escape double quotes as being put in a C string.
     STRING(REPLACE "\"" "\\\"" file_content "${file_content}")

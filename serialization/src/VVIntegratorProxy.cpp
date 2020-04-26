@@ -44,13 +44,12 @@ void VVIntegratorProxy::serialize(const void* object, SerializationNode& node) c
     node.setIntProperty("version", 1);
     const VVIntegrator& integrator = *reinterpret_cast<const VVIntegrator*>(object);
     node.setDoubleProperty("temperature", integrator.getTemperature());
-    node.setDoubleProperty("couplingTime", integrator.getCouplingTime());
+    node.setDoubleProperty("frequency", integrator.getFrequency());
     node.setDoubleProperty("drudeTemperature", integrator.getDrudeTemperature());
-    node.setDoubleProperty("drudeCouplingTime", integrator.getDrudeCouplingTime());
+    node.setDoubleProperty("drudeFrequency", integrator.getDrudeFrequency());
     node.setDoubleProperty("stepSize", integrator.getStepSize());
-    node.setIntProperty("loopsPerStep", integrator.getLoopsPerStep());
     node.setIntProperty("numNHChains", integrator.getNumNHChains());
-    node.setIntProperty("useDrudeNHChains", integrator.getUseDrudeNHChains());
+    node.setIntProperty("loopsPerStep", integrator.getLoopsPerStep());
     node.setBoolProperty("useCOMTempGroup", integrator.getUseCOMTempGroup());
 
     node.setDoubleProperty("constraintTolerance", integrator.getConstraintTolerance());
@@ -68,13 +67,12 @@ void* VVIntegratorProxy::deserialize(const SerializationNode& node) const {
         throw OpenMMException("Unsupported version number");
     VVIntegrator *integrator = new VVIntegrator(
             node.getDoubleProperty("temperature"),
-            node.getDoubleProperty("couplingTime"),
+            node.getDoubleProperty("frequency"),
             node.getDoubleProperty("drudeTemperature"),
-            node.getDoubleProperty("drudeCouplingTime"),
+            node.getDoubleProperty("drudeFrequency"),
             node.getDoubleProperty("stepSize"),
-            node.getIntProperty("loopsPerStep"),
             node.getIntProperty("numNHChains"),
-            node.getBoolProperty("useDrudeNHChains"),
+            node.getIntProperty("loopsPerStep"),
             node.getBoolProperty("useCOMTempGroup"));
 
     integrator->setConstraintTolerance(node.getDoubleProperty("constraintTolerance"));

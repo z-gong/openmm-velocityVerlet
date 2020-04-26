@@ -35,26 +35,25 @@
 #include "openmm/internal/AssertionUtilities.h"
 #include "openmm/internal/ContextImpl.h"
 #include "openmm/VVKernels.h"
-#include <iostream>
-#include <typeinfo>
 #include <algorithm>
+#include <vector>
+#include "openmm/reference/SimTKOpenMMRealType.h"
 
 using namespace OpenMM;
 using std::string;
 using std::vector;
 
-VVIntegrator::VVIntegrator(double temperature, double couplingTime, double drudeTemperature,
-                           double drudeCouplingTime, double stepSize, int loopsPerStep,
-                           int numNHChains, bool useDrudeNHChains, bool useCOMTempGroup)
+VVIntegrator::VVIntegrator(double temperature, double frequency, double drudeTemperature,
+                           double drudeFrequency, double stepSize,
+                           int numNHChains, int loopsPerStep, bool useCOMTempGroup)
         : forcesAreValid(false) {
     setTemperature(temperature);
-    setCouplingTime(couplingTime);
+    setFrequency(frequency);
     setDrudeTemperature(drudeTemperature);
-    setDrudeCouplingTime(drudeCouplingTime);
+    setDrudeFrequency(drudeFrequency);
     setStepSize(stepSize);
-    setLoopsPerStep(loopsPerStep);
     setNumNHChains(numNHChains);
-    setUseDrudeNHChains(useDrudeNHChains);
+    setLoopsPerStep(loopsPerStep);
     setUseCOMTempGroup(useCOMTempGroup);
     setConstraintTolerance(1e-5);
     setMaxDrudeDistance(0);
@@ -77,22 +76,6 @@ int VVIntegrator::addImagePair(int image, int parent) {
     return imagePairs.size();
 }
 
-int VVIntegrator::addTempGroup() {
-    tempGroups.push_back(tempGroups.size());
-    return tempGroups.size()-1;
-}
-
-void VVIntegrator::setParticleTempGroup(int particle, int tempGroup) {
-    ASSERT_VALID_INDEX(particle, particleTempGroup);
-    ASSERT_VALID_INDEX(tempGroup, tempGroups);
-    particleTempGroup[particle] = tempGroup;
-}
-
-void VVIntegrator::getParticleTempGroup(int particle, int& tempGroup) const {
-    ASSERT_VALID_INDEX(particle, particleTempGroup);
-    tempGroup = particleTempGroup[particle];
-}
-
 double VVIntegrator::getResInvMass(int resid) const {
     ASSERT_VALID_INDEX(resid, residueInvMasses);
     return residueInvMasses[resid];
@@ -106,6 +89,7 @@ int VVIntegrator::getParticleResId(int particle) const {
 void VVIntegrator::initialize(ContextImpl& contextRef) {
     if (owner != NULL && &contextRef.getOwner() != owner)
         throw OpenMMException("This Integrator is already bound to a context");
+
     const DrudeForce* force = NULL;
     const System& system = contextRef.getSystem();
     for (int i = 0; i < system.getNumForces(); i++) {
@@ -116,18 +100,10 @@ void VVIntegrator::initialize(ContextImpl& contextRef) {
                 throw OpenMMException("The System contains multiple DrudeForces");
         }
     }
-    if (force == NULL)
-        throw OpenMMException("The System does not contain a DrudeForce");
+    if (force == NULL && useCOMTempGroup)
+        throw OpenMMException("Should not use COM temperature group for non-Drude model");
 
-    // If particleTempGroup is not assigned, assign all to single temperature group
-    if (particleTempGroup.empty()) {
-        if (tempGroups.empty())
-            tempGroups.push_back(0);
-        for (int i = 0; i < system.getNumParticles(); i++)
-            particleTempGroup.push_back(0);
-    }
-    else if (particleTempGroup.size() != system.getNumParticles())
-        throw OpenMMException("Number of particles assigned with temperature groups does not match the number of system particles");
+    // TODO Should consider the special case where a molecule contains only one real atom
 
     particleResId = std::vector<int>(system.getNumParticles(), -1);
     std::vector<std::vector<int> > molecules = contextRef.getMolecules();
@@ -166,14 +142,14 @@ void VVIntegrator::initialize(ContextImpl& contextRef) {
     context = &contextRef;
     owner = &contextRef.getOwner();
     vvKernel = context->getPlatform().createKernel(IntegrateVVStepKernel::Name(), contextRef);
-    vvKernel.getAs<IntegrateVVStepKernel>().initialize(contextRef.getSystem(), *this, *force);
+    vvKernel.getAs<IntegrateVVStepKernel>().initialize(contextRef.getSystem(), *this, force);
     if (!particlesNH.empty()) {
         nhKernel = context->getPlatform().createKernel(ModifyDrudeNoseKernel::Name(), contextRef);
-        nhKernel.getAs<ModifyDrudeNoseKernel>().initialize(contextRef.getSystem(), *this, *force);
+        nhKernel.getAs<ModifyDrudeNoseKernel>().initialize(contextRef.getSystem(), *this, force);
     }
     if (!particlesLD.empty()) {
         ldKernel = context->getPlatform().createKernel(ModifyDrudeLangevinKernel::Name(), contextRef);
-        ldKernel.getAs<ModifyDrudeLangevinKernel>().initialize(contextRef.getSystem(), *this, *force, vvKernel);
+        ldKernel.getAs<ModifyDrudeLangevinKernel>().initialize(contextRef.getSystem(), *this, force, vvKernel);
     }
     if (!particlesImage.empty()) {
         imgKernel = context->getPlatform().createKernel(ModifyImageChargeKernel::Name(), contextRef);
@@ -251,7 +227,7 @@ void VVIntegrator::step(int steps) {
                 ppKernel.getAs<ModifyPeriodicPerturbationKernel>().calcVelocityBias(*context, *this);
                 ppKernel.getAs<ModifyPeriodicPerturbationKernel>().removeVelocityBias(*context, *this);
             }
-            nhKernel.getAs<ModifyDrudeNoseKernel>().propagateNHChain(*context, *this);
+            nhKernel.getAs<ModifyDrudeNoseKernel>().calcGroupKineticEnergies(*context, *this);
             nhKernel.getAs<ModifyDrudeNoseKernel>().scaleVelocity(*context, *this);
             if (cosAcceleration != 0){
                 ppKernel.getAs<ModifyPeriodicPerturbationKernel>().restoreVelocityBias(*context, *this);
@@ -284,11 +260,50 @@ void VVIntegrator::step(int steps) {
                 ppKernel.getAs<ModifyPeriodicPerturbationKernel>().calcVelocityBias(*context, *this);
                 ppKernel.getAs<ModifyPeriodicPerturbationKernel>().removeVelocityBias(*context, *this);
             }
-            nhKernel.getAs<ModifyDrudeNoseKernel>().propagateNHChain(*context, *this);
+            nhKernel.getAs<ModifyDrudeNoseKernel>().calcGroupKineticEnergies(*context, *this);
             nhKernel.getAs<ModifyDrudeNoseKernel>().scaleVelocity(*context, *this);
             if (cosAcceleration != 0){
                 ppKernel.getAs<ModifyPeriodicPerturbationKernel>().restoreVelocityBias(*context, *this);
             }
+        }
+    }
+}
+
+void VVIntegrator::propagateNHChain(std::vector<double> &eta, std::vector<double> &eta_dot,
+                                    std::vector<double> &eta_dotdot, std::vector<double> &eta_mass,
+                                    double ke2, double ke2_target, double t_target,
+                                    double &factor) const {
+    double expfac;
+    double dt2 = getStepSize() / loopsPerStep / 2;
+    double dt4 = dt2 / 2;
+    double dt8 = dt4 / 2;
+
+    factor = 1.0;
+    if (eta_mass[0] > 0)
+        eta_dotdot[0] = (ke2 - ke2_target) / eta_mass[0];
+    for (int iloop = 0; iloop < loopsPerStep; iloop++) {
+        for (int ich = numNHChains - 1; ich >= 0; ich--) {
+            expfac = exp(-dt8 * eta_dot[ich + 1]);
+            eta_dot[ich] *= expfac;
+            eta_dot[ich] += eta_dotdot[ich] * dt4;
+            eta_dot[ich] *= expfac;
+        }
+        factor *= exp(-dt2 * eta_dot[0]);
+
+        for (int ich = 0; ich < numNHChains; ich++)
+            eta[ich] += dt2 * eta_dot[ich];
+
+        eta_dotdot[0] = (ke2 * factor * factor - ke2_target) / eta_mass[0];
+        eta_dot[0] *= expfac;
+        eta_dot[0] += eta_dotdot[0] * dt4;
+        eta_dot[0] *= expfac;
+        for (int ich = 1; ich < numNHChains; ich++) {
+            expfac = exp(-dt8 * eta_dot[ich + 1]);
+            eta_dot[ich] *= expfac;
+            eta_dotdot[ich] = (eta_mass[ich - 1] * eta_dot[ich - 1] * eta_dot[ich - 1]
+                               - BOLTZ * t_target) / eta_mass[ich];
+            eta_dot[ich] += eta_dotdot[ich] * dt4;
+            eta_dot[ich] *= expfac;
         }
     }
 }

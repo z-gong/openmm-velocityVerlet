@@ -72,7 +72,6 @@ extern "C" __global__ void normalizeVelocities(const mixed4 *__restrict__ velm,
 
 extern "C" __global__ void computeNormalizedKineticEnergies(const mixed4 *__restrict__ comVelm,
                                                             const mixed4 *__restrict__ normVelm,
-                                                            const int *__restrict__ particleTempGroup,
                                                             const int *__restrict__ normalParticles,
                                                             const int2 *__restrict__ pairParticles,
                                                             double *__restrict__ kineticEnergyBuffer,
@@ -105,7 +104,7 @@ extern "C" __global__ void computeNormalizedKineticEnergies(const mixed4 *__rest
         int index = normalParticles[i];
         mixed4 velocity = normVelm[index];
         if (velocity.w != 0) {
-            kineticEnergyBuffer[tid * (NUM_TEMP_GROUPS + 2) + particleTempGroup[index]] +=
+            kineticEnergyBuffer[tid * (NUM_TEMP_GROUPS + 2)] +=
                     (velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z) / velocity.w;
         }
     }
@@ -124,7 +123,7 @@ extern "C" __global__ void computeNormalizedKineticEnergies(const mixed4 *__rest
         mixed4 cmVel = velocity1*mass1fract+velocity2*mass2fract;
         mixed4 relVel = velocity1-velocity2;
 
-        kineticEnergyBuffer[tid*(NUM_TEMP_GROUPS+2)+particleTempGroup[pair.y]] += (cmVel.x*cmVel.x + cmVel.y*cmVel.y + cmVel.z*cmVel.z)*(mass1+mass2);
+        kineticEnergyBuffer[tid*(NUM_TEMP_GROUPS+2)] += (cmVel.x*cmVel.x + cmVel.y*cmVel.y + cmVel.z*cmVel.z)*(mass1+mass2);
         kineticEnergyBuffer[tid*(NUM_TEMP_GROUPS+2)+NUM_TEMP_GROUPS+1] += (relVel.x*relVel.x + relVel.y*relVel.y + relVel.z*relVel.z)*RECIP(invReducedMass);
     }
 }
@@ -177,17 +176,16 @@ extern "C" __global__ void integrateDrudeNoseHooverVelocityScale(mixed4 *__restr
                                                                  const mixed4 *__restrict__ normVelm,
                                                                  const int *__restrict__ normalParticles,
                                                                  const int2 *__restrict__ pairParticles,
-                                                                 const int *__restrict__ particleTempGroup,
                                                                  const mixed *__restrict__ vscaleFactors) {
 
-    mixed vscaleCOM = vscaleFactors[NUM_TEMP_GROUPS];
-    mixed vscaleDrude = vscaleFactors[NUM_TEMP_GROUPS+1];
+    mixed vscale = vscaleFactors[0];
+    mixed vscaleCOM = vscaleFactors[1];
+    mixed vscaleDrude = vscaleFactors[2];
     // Update normal particles.
     for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_NORMAL_PARTICLES_NH; i += blockDim.x*gridDim.x) {
         int index = normalParticles[i];
         mixed4 velocity = velm[index];
         mixed4 velRel = normVelm[index];
-        mixed vscale = vscaleFactors[particleTempGroup[index]];
         if (velocity.w != 0) {
             velocity.x = vscale*velRel.x + vscaleCOM*(velocity.x-velRel.x);
             velocity.y = vscale*velRel.y + vscaleCOM*(velocity.y-velRel.y);
@@ -200,7 +198,6 @@ extern "C" __global__ void integrateDrudeNoseHooverVelocityScale(mixed4 *__restr
     
     for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_PAIRS_NH; i += blockDim.x*gridDim.x) {
         int2 particles = pairParticles[i];
-        mixed vscaleCM = vscaleFactors[particleTempGroup[particles.x]];
         mixed4 velocity1 = velm[particles.x];
         mixed4 velocity2 = velm[particles.y];
         mixed4 velRel1 = normVelm[particles.x];
@@ -214,9 +211,9 @@ extern "C" __global__ void integrateDrudeNoseHooverVelocityScale(mixed4 *__restr
         mixed mass2fract = invTotalMass*mass2;
         mixed4 cmVel = velRel1*mass1fract+velRel2*mass2fract;
         mixed4 relVel = velRel2-velRel1;
-        cmVel.x = vscaleCM*cmVel.x;
-        cmVel.y = vscaleCM*cmVel.y;
-        cmVel.z = vscaleCM*cmVel.z;
+        cmVel.x = vscale*cmVel.x;
+        cmVel.y = vscale*cmVel.y;
+        cmVel.z = vscale*cmVel.z;
         relVel.x = vscaleDrude*relVel.x;
         relVel.y = vscaleDrude*relVel.y;
         relVel.z = vscaleDrude*relVel.z;

@@ -45,8 +45,7 @@ extern "C" void registerVelocityVerletSerializationProxies();
 void testSerialization() {
     // Create an Integrator.
 
-    VVIntegrator integ1(301.1, 0.1, 10.5, 0.005, 0.001,
-                        10, 3, true, true);
+    VVIntegrator integ1(300.0, 10.0, 1.0, 40.0, 0.001, 3, 1, true);
 
     // Serialize and then deserialize it.
 
@@ -55,16 +54,15 @@ void testSerialization() {
     VVIntegrator* copy = XmlSerializer::deserialize<VVIntegrator>(buffer);
 
     // Compare the two integrators to see if they are identical.
-    
+
     VVIntegrator& integ2 = *copy;
     ASSERT_EQUAL(integ1.getTemperature(), integ2.getTemperature());
-    ASSERT_EQUAL(integ1.getCouplingTime(), integ2.getCouplingTime());
+    ASSERT_EQUAL(integ1.getFrequency(), integ2.getFrequency());
     ASSERT_EQUAL(integ1.getDrudeTemperature(), integ2.getDrudeTemperature());
-    ASSERT_EQUAL(integ1.getDrudeCouplingTime(), integ2.getDrudeCouplingTime());
+    ASSERT_EQUAL(integ1.getDrudeFrequency(), integ2.getDrudeFrequency());
     ASSERT_EQUAL(integ1.getStepSize(), integ2.getStepSize());
-    ASSERT_EQUAL(integ1.getLoopsPerStep(), integ2.getLoopsPerStep());
     ASSERT_EQUAL(integ1.getNumNHChains(), integ2.getNumNHChains());
-    ASSERT_EQUAL(integ1.getUseDrudeNHChains(), integ2.getUseDrudeNHChains());
+    ASSERT_EQUAL(integ1.getLoopsPerStep(), integ2.getLoopsPerStep());
     ASSERT_EQUAL(integ1.getUseCOMTempGroup(), integ2.getUseCOMTempGroup());
 
     ASSERT_EQUAL(integ1.getConstraintTolerance(), integ2.getConstraintTolerance());

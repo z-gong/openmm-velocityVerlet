@@ -93,7 +93,6 @@ integrator.setMirrorLocation(length_box / 2)
 ### External electric field
 An external electric field along `z` direction can be applied for selected particles.
 Note that external electric field can also be done by using `CustomExternalForce`.
-from simtk.unit import kelvin as K, picosecond as ps
 
 #### usage
 ```python
@@ -113,7 +112,7 @@ This is because the getMolecules() function simply ignores these atoms.
 This issue will get fixed soon.
 
 - The external electric field should be used with caution.
-One should apply the electric field to all particles or non of them of same molecules types.
+One should apply the electric field to all particles or none of them of same molecules types.
 It's a bit confusing. Imaging a system made of 100 A molecules and 100 B molecules.
 One can apply electric field to only 100 A molecules, or to only 100 B molecules, or to all of them.
 But one **CANNOT** apply electric field to only 50 A molecules.

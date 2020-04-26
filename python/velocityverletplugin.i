@@ -36,16 +36,16 @@ import simtk.unit as unit
    val=unit.Quantity(val, unit.kelvin)
 %}
 
-%pythonappend OpenMM::VVIntegrator::getCouplingTime() const %{
-   val=unit.Quantity(val, unit.picosecond)
+%pythonappend OpenMM::VVIntegrator::getFrequency() const %{
+   val=unit.Quantity(val, 1 / unit.picosecond)
 %}
 
 %pythonappend OpenMM::VVIntegrator::getDrudeTemperature() const %{
    val=unit.Quantity(val, unit.kelvin)
 %}
 
-%pythonappend OpenMM::VVIntegrator::getDrudeCouplingTime() const %{
-   val=unit.Quantity(val, unit.picosecond)
+%pythonappend OpenMM::VVIntegrator::getDrudeFrequency() const %{
+   val=unit.Quantity(val, 1 / unit.picosecond)
 %}
 
 %pythonappend OpenMM::VVIntegrator::getMaxDrudeDistance() const %{
@@ -82,25 +82,23 @@ namespace OpenMM {
 
 class VVIntegrator : public Integrator {
 public:
-   VVIntegrator(double temperature, double couplingTime, double drudeTemperature, double drudeCouplingTime, double stepSize, int loopsPerStep=1, int numNHChains=3, int useDrudeNHChains=True, int useCOMTempGroup=True) ;
+   VVIntegrator(double temperature, double frequency, double drudeTemperature, double drudeFrequency, double stepSize, int numNHChains=3, int loopsPerStep=1, bool useCOMTempGroup=false) ;
 
    double getTemperature() const ;
    void setTemperature(double temp) ;
-   double getCouplingTime() const ;
-   void setCouplingTime(double tau) ;
+   double getFrequency() const ;
+   void setFrequency(double tau) ;
    double getDrudeTemperature() const ;
    void setDrudeTemperature(double temp) ;
-   double getDrudeCouplingTime() const ;
-   void setDrudeCouplingTime(double tau) ;
+   double getDrudeFrequency() const ;
+   void setDrudeFrequency(double tau) ;
    double getMaxDrudeDistance() const ;
    void setMaxDrudeDistance(double distance) ;
    virtual void step(int steps) ;
-   int getLoopsPerStep() const ;
-   void setLoopsPerStep(int loops) ;
    int getNumNHChains() const ;
    void setNumNHChains(int numChains) ;
-   bool getUseDrudeNHChains() const ;
-   void setUseDrudeNHChains(int useDrudeNHChains) ;
+   int getLoopsPerStep() const ;
+   void setLoopsPerStep(int loops) ;
    bool getUseCOMTempGroup() const ;
    void setUseCOMTempGroup(int useCOMTempGroup) ;
    int getNumTempGroups() const ;
