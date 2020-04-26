@@ -45,7 +45,7 @@ using std::vector;
 
 VVIntegrator::VVIntegrator(double temperature, double frequency, double drudeTemperature,
                            double drudeFrequency, double stepSize,
-                           int numNHChains, int loopsPerStep, bool useCOMTempGroup)
+                           int numNHChains, int loopsPerStep)
         : forcesAreValid(false) {
     setTemperature(temperature);
     setFrequency(frequency);
@@ -64,6 +64,7 @@ VVIntegrator::VVIntegrator(double temperature, double frequency, double drudeTem
     setElectricField(0.0);
     setCosAcceleration(0.0);
     setDebugEnabled(false);
+    autoSetCOMTempGroup = true;
 }
 
 VVIntegrator::~VVIntegrator() {
@@ -100,8 +101,17 @@ void VVIntegrator::initialize(ContextImpl& contextRef) {
                 throw OpenMMException("The System contains multiple DrudeForces");
         }
     }
-    if (force == NULL && useCOMTempGroup)
-        throw OpenMMException("Should not use COM temperature group for non-Drude model");
+    if (force == NULL) {
+        if (autoSetCOMTempGroup)
+            setUseCOMTempGroup(false);
+        else if (useCOMTempGroup)
+            printf("WARNING: You are using COM temperature group for non-Drude model\n");
+    } else {
+        if (autoSetCOMTempGroup)
+            setUseCOMTempGroup(true);
+        else if (!useCOMTempGroup)
+            printf("WARNING: You are not using COM temperature group for Drude model\n");
+    }
 
     // TODO Should consider the special case where a molecule contains only one real atom
 
@@ -118,7 +128,7 @@ void VVIntegrator::initialize(ContextImpl& contextRef) {
 
     for (int i = 0; i < numResidues; i++)
         residueInvMasses.push_back(1.0/residueMasses[i]);
- 
+
     // handle particles thermostated by Langevin dynamics
     for (int i = 0; i < system.getNumParticles(); i++) {
         if (!isParticleLD(i) && !isParticleImage(i)) {
@@ -196,7 +206,7 @@ double VVIntegrator::computeKineticEnergy() {
 
 void VVIntegrator::step(int steps) {
     if (context == NULL)
-        throw OpenMMException("This Integrator is not bound to a context!");    
+        throw OpenMMException("This Integrator is not bound to a context!");
     for (int i = 0; i < steps; ++i) {
 
         /** TODO gongzheng @ 2020-02-21
@@ -279,8 +289,7 @@ void VVIntegrator::propagateNHChain(std::vector<double> &eta, std::vector<double
     double dt8 = dt4 / 2;
 
     factor = 1.0;
-    if (eta_mass[0] > 0)
-        eta_dotdot[0] = (ke2 - ke2_target) / eta_mass[0];
+    eta_dotdot[0] = (ke2 - ke2_target) / eta_mass[0];
     for (int iloop = 0; iloop < loopsPerStep; iloop++) {
         for (int ich = numNHChains - 1; ich >= 0; ich--) {
             expfac = exp(-dt8 * eta_dot[ich + 1]);

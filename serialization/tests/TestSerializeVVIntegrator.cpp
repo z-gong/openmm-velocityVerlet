@@ -45,7 +45,7 @@ extern "C" void registerVelocityVerletSerializationProxies();
 void testSerialization() {
     // Create an Integrator.
 
-    VVIntegrator integ1(300.0, 10.0, 1.0, 40.0, 0.001, 3, 1, true);
+    VVIntegrator integ1(300.0, 10.0, 1.0, 40.0, 0.001, 3, 1);
 
     // Serialize and then deserialize it.
 

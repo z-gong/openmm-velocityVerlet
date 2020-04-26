@@ -82,7 +82,7 @@ namespace OpenMM {
 
 class VVIntegrator : public Integrator {
 public:
-   VVIntegrator(double temperature, double frequency, double drudeTemperature, double drudeFrequency, double stepSize, int numNHChains=3, int loopsPerStep=1, bool useCOMTempGroup=false) ;
+   VVIntegrator(double temperature, double frequency, double drudeTemperature, double drudeFrequency, double stepSize, int numNHChains=3, int loopsPerStep=1) ;
 
    double getTemperature() const ;
    void setTemperature(double temp) ;

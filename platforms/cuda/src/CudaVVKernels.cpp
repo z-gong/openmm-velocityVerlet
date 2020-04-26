@@ -394,10 +394,8 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
                         realKbT / pow(integrator.getFrequency(), 2);
         tempGroupNkbT.push_back(tempGroupDof[i] * tgKbT);
         etaMass[i][0] = tempGroupDof[i] * tgMass;
-        for (int ich=1; ich < integrator.getNumNHChains(); ich++) {
+        for (int ich=1; ich < integrator.getNumNHChains(); ich++)
             etaMass[i][ich] = tgMass;
-            etaDotDot[i][ich] = (etaMass[i][ich-1] * etaDot[i][ich-1] * etaDot[i][ich-1] - tgKbT) / etaMass[i][ich];
-        }
     }
 
     // Initialize CudaArray
@@ -455,11 +453,11 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
          << "    Num molecules in NH thermostat: " << residuesNHVec.size() << " / " << integrator.getNumResidues() << "\n"
          << "    Num normal particles: " << normalParticlesNHVec.size() << ", Num Drude pairs: " << pairParticlesNHVec.size() << "\n"
          << "    Real T: " << integrator.getTemperature() << " K, Drude T: " << integrator.getDrudeTemperature() << " K\n"
-         << "    Real coupling time: " << integrator.getFrequency() << " ps, Drude coupling time: " << integrator.getDrudeFrequency() << " ps\n"
-         << "    Loops per NH step: " << integrator.getLoopsPerStep() << ", Num NH chain: " << integrator.getNumNHChains() << "\n"
+         << "    Real coupling frequency: " << integrator.getFrequency() << " /ps, Drude coupling frequency: " << integrator.getDrudeFrequency() << " /ps\n"
+         << "    Num NH chain: " << integrator.getNumNHChains() << ", Loops per NH step: " << integrator.getLoopsPerStep() << "\n"
          << "    Use COM temperature group: " << integrator.getUseCOMTempGroup() << "\n";
     for (int i = 0; i < NUM_TG; i++) {
-        cout << "    NkbT[" << i << "]: " << tempGroupNkbT[i] << ", etaMass[" << i << "]: " << etaMass[i][0] << ", DOF[" << i << "]: " << tempGroupDof[i] << "\n";
+        cout << "DOF[" << i << "]: " << tempGroupDof[i] << ", NkbT[" << i << "]: " << tempGroupNkbT[i] << ", etaMass[" << i << "]: " << etaMass[i][0] << "\n";
     }
 }
 
@@ -529,16 +527,17 @@ void CudaModifyDrudeNoseKernel::scaleVelocity(ContextImpl& context, const VVInte
     // Calculate scaling factor for velocities for each temperature group using Nose-Hoover chain
     vscaleFactorsNHVec = std::vector<double>(NUM_TG, 1.0);
     for (int itg = 0; itg < NUM_TG; itg++) {
-        double T = itg == TG_DRUDE? integrator.getDrudeTemperature(): integrator.getTemperature();
-        double scale;
-        integrator.propagateNHChain(eta[itg], etaDot[itg], etaDotDot[itg], etaMass[itg],
-                                    kineticEnergiesNHVec[itg], tempGroupNkbT[itg], T, scale);
+        double T = itg == TG_DRUDE ? integrator.getDrudeTemperature() : integrator.getTemperature();
+        double scale = 1;
+        if (etaMass[itg][0] > 0)
+            integrator.propagateNHChain(eta[itg], etaDot[itg], etaDotDot[itg], etaMass[itg],
+                                        kineticEnergiesNHVec[itg], tempGroupNkbT[itg], T, scale);
         vscaleFactorsNHVec[itg] = scale;
         kineticEnergiesNHVec[itg] *= scale;
     }
 
 //    std::cout << cu.getStepCount() << " NH Velocity scaling factors: ";
-//    for (auto scale: vscaleFactorsVec) {
+//    for (auto scale: vscaleFactorsNHVec) {
 //        std::cout<< scale << "; ";
 //    }
 //    std::cout<< "\n";

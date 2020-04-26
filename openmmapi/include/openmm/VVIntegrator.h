@@ -68,7 +68,7 @@ public:
      * @param loopsPerStep       the number of loops of NH velocity scaling per single step (integer)
      * @param useCOMTempGroup    whether to set molecular COM motion as a separate temperature group (bool)
      */
-    VVIntegrator(double temperature, double frequency, double drudeTemperature, double drudeFrequency, double stepSize, int numNHChains=3, int loopsPerStep=1, bool useCOMTempGroup=false);
+    VVIntegrator(double temperature, double frequency, double drudeTemperature, double drudeFrequency, double stepSize, int numNHChains=3, int loopsPerStep=1);
 
     virtual ~VVIntegrator();
     /**
@@ -187,6 +187,7 @@ public:
      */
     void setUseCOMTempGroup(bool use) {
         useCOMTempGroup = use;
+        autoSetCOMTempGroup = false;
     }
     /**
      * Get the maximum distance a Drude particle can ever move from its parent particle, measured in nm.  This is implemented
@@ -482,7 +483,7 @@ private:
     bool debugEnabled;
     double temperature, frequency, drudeTemperature, drudeFrequency, maxDrudeDistance;
     int loopsPerStep, numNHChains;
-    bool useCOMTempGroup;
+    bool useCOMTempGroup, autoSetCOMTempGroup;
     std::vector<int> particlesNH;
     std::vector<int> residuesNH;
     std::vector<int> particleResId;
