@@ -410,13 +410,13 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
     vscaleFactorsNH = CudaArray::create<double>(cu, NUM_TG, "drudeScaleFactorsNH");
 
     if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision()) {
-        comVelm = CudaArray::create<double4>(cu, max(integrator.getNumResidues(), 1), "drudeComVelm");
-        auto vec = std::vector<double4>(comVelm->getSize(), make_double4(0, 0, 0, 0));
+        comVelm = CudaArray::create<double4>(cu, integrator.getNumResidues(), "drudeComVelm");
+        auto vec = std::vector<double4>(integrator.getNumResidues(), make_double4(0, 0, 0, 0));
         comVelm->upload(vec);
     }
     else {
-        comVelm = CudaArray::create<float4>(cu, max(integrator.getNumResidues(), 1), "drudeComVelm");
-        auto vec = std::vector<float4>(comVelm->getSize(), make_float4(0, 0, 0, 0));
+        comVelm = CudaArray::create<float4>(cu, integrator.getNumResidues(), "drudeComVelm");
+        auto vec = std::vector<float4>(integrator.getNumResidues(), make_float4(0, 0, 0, 0));
         comVelm->upload(vec);
     }
 
@@ -471,9 +471,9 @@ void CudaModifyDrudeNoseKernel::scaleVelocity(ContextImpl& context, const VVInte
 
     if (integrator.getUseCOMTempGroup()){
         void *argsCOMVel[] = {&cu.getVelm().getDevicePointer(),
+                              &comVelm->getDevicePointer(),
                               &particlesInResidues->getDevicePointer(),
                               &particlesSortedByResId->getDevicePointer(),
-                              &comVelm->getDevicePointer(),
                               &residuesNH->getDevicePointer()};
         cu.executeKernel(kernelCOMVel, argsCOMVel, residuesNHVec.size());
 
@@ -511,7 +511,7 @@ void CudaModifyDrudeNoseKernel::scaleVelocity(ContextImpl& context, const VVInte
     kineticEnergiesNH->download(kineticEnergiesNHVec);
 
 //    std::cout << cu.getStepCount() << " NH group kinetic energies: ";
-//    for (auto ke: kineticEnergiesVec) {
+//    for (auto ke: kineticEnergiesNHVec) {
 //        std::cout<< ke / 2 << "; ";
 //    }
 //    std::cout<< "\n";

@@ -3,9 +3,9 @@
  */
 
 extern "C" __global__ void calcCOMVelocities(const mixed4 *__restrict__ velm,
+                                             mixed4 *__restrict__ comVelm,
                                              const int2 *__restrict__ particlesInResidues,
                                              const int *__restrict__ particlesSortedByResId,
-                                             mixed4 *__restrict__ comVelm,
                                              const int *__restrict__ residuesNH) {
 
     // Get COM velocities
