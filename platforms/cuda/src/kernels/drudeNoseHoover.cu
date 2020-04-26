@@ -171,11 +171,11 @@ extern "C" __global__ void integrateDrudeNoseHooverVelocityScale(mixed4 *__restr
                                                                  const int *__restrict__ particleResId,
                                                                  const int *__restrict__ normalParticles,
                                                                  const int2 *__restrict__ pairParticles,
-                                                                 const mixed *__restrict__ vscaleFactors) {
+                                                                 const double *__restrict__ vscaleFactors) {
 
-    mixed vscaleAtom = vscaleFactors[0];
-    mixed vscaleCOM = vscaleFactors[1];
-    mixed vscaleDrude = vscaleFactors[2];
+    double vscaleAtom = vscaleFactors[0];
+    double vscaleCOM = vscaleFactors[1];
+    double vscaleDrude = vscaleFactors[2];
     // Update normal particles.
     for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_NORMAL_PARTICLES_NH; i += blockDim.x*gridDim.x) {
         int index = normalParticles[i];

@@ -510,11 +510,11 @@ void CudaModifyDrudeNoseKernel::scaleVelocity(ContextImpl& context, const VVInte
     kineticEnergiesNHVec = std::vector<double>(NUM_TG);
     kineticEnergiesNH->download(kineticEnergiesNHVec);
 
-//    std::cout << cu.getStepCount() << " NH group kinetic energies: ";
-//    for (auto ke: kineticEnergiesNHVec) {
-//        std::cout<< ke / 2 << "; ";
-//    }
-//    std::cout<< "\n";
+    std::cout << cu.getStepCount() << " NH group kinetic energies: ";
+    for (auto ke: kineticEnergiesNHVec) {
+        std::cout<< ke / 2 << "; ";
+    }
+    std::cout<< "\n";
 
 
     // Calculate scaling factor for velocities for each temperature group using Nose-Hoover chain
@@ -529,11 +529,11 @@ void CudaModifyDrudeNoseKernel::scaleVelocity(ContextImpl& context, const VVInte
         kineticEnergiesNHVec[itg] *= scale;
     }
 
-//    std::cout << cu.getStepCount() << " NH Velocity scaling factors: ";
-//    for (auto scale: vscaleFactorsNHVec) {
-//        std::cout<< scale << "; ";
-//    }
-//    std::cout<< "\n";
+    std::cout << cu.getStepCount() << " NH Velocity scaling factors: ";
+    for (auto scale: vscaleFactorsNHVec) {
+        std::cout<< scale << "; ";
+    }
+    std::cout<< "\n";
 
     vscaleFactorsNH->upload(vscaleFactorsNHVec);
     void *argsChain[] = {&cu.getVelm().getDevicePointer(),
