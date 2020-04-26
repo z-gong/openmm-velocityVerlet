@@ -269,7 +269,6 @@ CudaModifyDrudeNoseKernel::~CudaModifyDrudeNoseKernel() {
     delete particlesInResidues;
     delete particlesSortedByResId;
     delete comVelm;
-    delete normVelm;
     delete kineticEnergyBufferNH;
     delete kineticEnergiesNH;
     delete vscaleFactorsNH;
@@ -412,11 +411,13 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
 
     if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision()) {
         comVelm = CudaArray::create<double4>(cu, max(integrator.getNumResidues(), 1), "drudeComVelm");
-        normVelm = CudaArray::create<double4>(cu, numAtoms, "drudeNormVelm");
+        auto vec = std::vector<double4>(comVelm->getSize(), make_double4(0, 0, 0, 0));
+        comVelm->upload(vec);
     }
     else {
         comVelm = CudaArray::create<float4>(cu, max(integrator.getNumResidues(), 1), "drudeComVelm");
-        normVelm = CudaArray::create<float4>(cu, numAtoms, "drudeNormVelm");
+        auto vec = std::vector<float4>(comVelm->getSize(), make_float4(0, 0, 0, 0));
+        comVelm->upload(vec);
     }
 
     if (!particlesNHVec.empty())
@@ -457,33 +458,31 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
          << "    Num NH chain: " << integrator.getNumNHChains() << ", Loops per NH step: " << integrator.getLoopsPerStep() << "\n"
          << "    Use COM temperature group: " << integrator.getUseCOMTempGroup() << "\n";
     for (int i = 0; i < NUM_TG; i++) {
-        cout << "DOF[" << i << "]: " << tempGroupDof[i] << ", NkbT[" << i << "]: " << tempGroupNkbT[i] << ", etaMass[" << i << "]: " << etaMass[i][0] << "\n";
+        cout << "    DOF[" << i << "]: " << tempGroupDof[i] << ", NkbT[" << i << "]: " << tempGroupNkbT[i] << ", etaMass[" << i << "]: " << etaMass[i][0] << "\n";
     }
 }
 
 
-void CudaModifyDrudeNoseKernel::calcGroupKineticEnergies(ContextImpl &context, const VVIntegrator &integrator) {
+void CudaModifyDrudeNoseKernel::scaleVelocity(ContextImpl& context, const VVIntegrator& integrator) {
     if (integrator.getDebugEnabled())
-        cout << "DrudeNoseModifier propagate Nose-Hoover chain\n" << flush;
+        cout << "DrudeNoseModifier scale velocity\n" << flush;
 
     cu.setAsCurrent();
 
-    bool useCOMGroup = integrator.getUseCOMTempGroup();
-    void *useCOMTempGroupPtr = &useCOMGroup;
-    void *argsCOMVel[] = {&cu.getVelm().getDevicePointer(),
-                          &particlesInResidues->getDevicePointer(),
-                          &particlesSortedByResId->getDevicePointer(),
-                          &comVelm->getDevicePointer(),
-                          useCOMTempGroupPtr,
-                          &residuesNH->getDevicePointer()};
-    cu.executeKernel(kernelCOMVel, argsCOMVel, residuesNHVec.size());
+    if (integrator.getUseCOMTempGroup()){
+        void *argsCOMVel[] = {&cu.getVelm().getDevicePointer(),
+                              &particlesInResidues->getDevicePointer(),
+                              &particlesSortedByResId->getDevicePointer(),
+                              &comVelm->getDevicePointer(),
+                              &residuesNH->getDevicePointer()};
+        cu.executeKernel(kernelCOMVel, argsCOMVel, residuesNHVec.size());
 
-    void *argsNormVel[] = {&cu.getVelm().getDevicePointer(),
-                           &particleResId->getDevicePointer(),
-                           &comVelm->getDevicePointer(),
-                           &normVelm->getDevicePointer(),
-                           &particlesNH->getDevicePointer()};
-    cu.executeKernel(kernelNormVel, argsNormVel, particlesNHVec.size());
+        void *argsNormVel[] = {&cu.getVelm().getDevicePointer(),
+                               &comVelm->getDevicePointer(),
+                               &particleResId->getDevicePointer(),
+                               &particlesNH->getDevicePointer()};
+        cu.executeKernel(kernelNormVel, argsNormVel, particlesNHVec.size());
+    }
 
     /**
      * Run kinetic energy calculations in the CUDA kernel
@@ -492,8 +491,8 @@ void CudaModifyDrudeNoseKernel::calcGroupKineticEnergies(ContextImpl &context, c
      * in case there's no particle in NH thermostat
      */
     int bufferSize = (int) particlesNHVec.size() * NUM_TG;
-    void *argsKE[] = {&comVelm->getDevicePointer(),
-                      &normVelm->getDevicePointer(),
+    void *argsKE[] = {&cu.getVelm().getDevicePointer(),
+                      &comVelm->getDevicePointer(),
                       &normalParticlesNH->getDevicePointer(),
                       &pairParticlesNH->getDevicePointer(),
                       &kineticEnergyBufferNH->getDevicePointer(),
@@ -516,16 +515,10 @@ void CudaModifyDrudeNoseKernel::calcGroupKineticEnergies(ContextImpl &context, c
 //        std::cout<< ke / 2 << "; ";
 //    }
 //    std::cout<< "\n";
-}
 
-void CudaModifyDrudeNoseKernel::scaleVelocity(ContextImpl& context, const VVIntegrator& integrator) {
-    if (integrator.getDebugEnabled())
-        cout << "DrudeNoseModifier scale velocity\n" << flush;
-
-    cu.setAsCurrent();
 
     // Calculate scaling factor for velocities for each temperature group using Nose-Hoover chain
-    vscaleFactorsNHVec = std::vector<double>(NUM_TG, 1.0);
+    vscaleFactorsNHVec = std::vector<double>(NUM_TG);
     for (int itg = 0; itg < NUM_TG; itg++) {
         double T = itg == TG_DRUDE ? integrator.getDrudeTemperature() : integrator.getTemperature();
         double scale = 1;
@@ -544,7 +537,8 @@ void CudaModifyDrudeNoseKernel::scaleVelocity(ContextImpl& context, const VVInte
 
     vscaleFactorsNH->upload(vscaleFactorsNHVec);
     void *argsChain[] = {&cu.getVelm().getDevicePointer(),
-                         &normVelm->getDevicePointer(),
+                         &comVelm->getDevicePointer(),
+                         &particleResId->getDevicePointer(),
                          &normalParticlesNH->getDevicePointer(),
                          &pairParticlesNH->getDevicePointer(),
                          &vscaleFactorsNH->getDevicePointer()};

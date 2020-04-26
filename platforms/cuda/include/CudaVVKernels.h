@@ -106,7 +106,7 @@ private:
                 ModifyDrudeNoseKernel(name, platform), cu(cu),
                 particlesNH(NULL), residuesNH(NULL), normalParticlesNH(NULL), pairParticlesNH(NULL),
                 particleResId(NULL), particlesInResidues(NULL), particlesSortedByResId(NULL),
-                comVelm(NULL), normVelm(NULL), kineticEnergyBufferNH(NULL),
+                comVelm(NULL), kineticEnergyBufferNH(NULL),
                 kineticEnergiesNH(NULL), vscaleFactorsNH(NULL) {
         }
 
@@ -120,16 +120,9 @@ private:
          * @param force      the DrudeForce to get particle parameters from
          */
         void initialize(const System &system, const VVIntegrator &integrator, const DrudeForce* force);
-        /**
-         * Calculate the kinetic energies of temperature groups and propagate the NH chains
-         *
-         * @param context        the context in which to execute this kernel
-         * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
-         */
-        void calcGroupKineticEnergies(ContextImpl &context, const VVIntegrator &integrator);
 
         /**
-         * Scale the velocity based on the results of propagation of NH chains
+         * Calculate the kinetic energies, propagate the NH chains and scale the velocity
          *
          * @param context        the context in which to execute this kernel
          * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
@@ -148,7 +141,6 @@ private:
         CudaArray *particlesInResidues;
         CudaArray *particlesSortedByResId;
         CudaArray *comVelm;
-        CudaArray *normVelm;
         CudaArray *kineticEnergyBufferNH;
         CudaArray *kineticEnergiesNH; // 2 * kinetic energy
         CudaArray *vscaleFactorsNH;

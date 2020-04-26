@@ -6,31 +6,28 @@ extern "C" __global__ void calcCOMVelocities(const mixed4 *__restrict__ velm,
                                              const int2 *__restrict__ particlesInResidues,
                                              const int *__restrict__ particlesSortedByResId,
                                              mixed4 *__restrict__ comVelm,
-                                             bool useCOMTempGroup,
                                              const int *__restrict__ residuesNH) {
 
     // Get COM velocities
     for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_RESIDUES_NH; i += blockDim.x*gridDim.x) {
         int resid = residuesNH[i];
         comVelm[resid] = make_mixed4(0,0,0,0);
-        if (useCOMTempGroup) {
-            mixed comMass = 0.0;
-            for (int j = 0; j < particlesInResidues[resid].x; j++) {
-                int index = particlesSortedByResId[particlesInResidues[resid].y + j];
-                mixed4 velocity = velm[index];
-                if (velocity.w != 0) {
-                    mixed mass = RECIP(velocity.w);
-                    comVelm[resid].x += velocity.x * mass;
-                    comVelm[resid].y += velocity.y * mass;
-                    comVelm[resid].z += velocity.z * mass;
-                    comMass += mass;
-                }
+        mixed comMass = 0.0;
+        for (int j = 0; j < particlesInResidues[resid].x; j++) {
+            int index = particlesSortedByResId[particlesInResidues[resid].y + j];
+            mixed4 velocity = velm[index];
+            if (velocity.w != 0) {
+                mixed mass = RECIP(velocity.w);
+                comVelm[resid].x += velocity.x * mass;
+                comVelm[resid].y += velocity.y * mass;
+                comVelm[resid].z += velocity.z * mass;
+                comMass += mass;
             }
-            comVelm[resid].w = RECIP(comMass);
-            comVelm[resid].x *= comVelm[resid].w;
-            comVelm[resid].y *= comVelm[resid].w;
-            comVelm[resid].z *= comVelm[resid].w;
         }
+        comVelm[resid].w = RECIP(comMass);
+        comVelm[resid].x *= comVelm[resid].w;
+        comVelm[resid].y *= comVelm[resid].w;
+        comVelm[resid].z *= comVelm[resid].w;
 
 //        if (i == 0)
 //            printf("residue %d has %d particles and starts at %d and vel %f,%f,%f and mass is %f \n",
@@ -44,21 +41,18 @@ extern "C" __global__ void calcCOMVelocities(const mixed4 *__restrict__ velm,
  * Calculate the relative velocities of each particles relative to the center of mass of each residues
  */
 
-extern "C" __global__ void normalizeVelocities(const mixed4 *__restrict__ velm,
-                                               const int *__restrict__ particleResId,
+extern "C" __global__ void normalizeVelocities(mixed4 *__restrict__ velm,
                                                const mixed4 *__restrict__ comVelm,
-                                               mixed4 *__restrict__ normVelm,
+                                               const int *__restrict__ particleResId,
                                                const int *__restrict__ particlesNH) {
 
     // Get Normalized velocities
     for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_PARTICLES_NH; i += blockDim.x*gridDim.x) {
         int index = particlesNH[i];
-        normVelm[index] = make_mixed4(0,0,0,0);
         int resid = particleResId[index];
-        normVelm[index].x = velm[index].x - comVelm[resid].x;
-        normVelm[index].y = velm[index].y - comVelm[resid].y;
-        normVelm[index].z = velm[index].z - comVelm[resid].z;
-        normVelm[index].w = velm[index].w;
+        velm[index].x -= comVelm[resid].x;
+        velm[index].y -= comVelm[resid].y;
+        velm[index].z -= comVelm[resid].z;
 
 //        if (i == 0)
 //            printf("Particle: %d, Norm velocity: %f, velocity: %f, comVel: %f, mass: %f\n",
@@ -70,8 +64,8 @@ extern "C" __global__ void normalizeVelocities(const mixed4 *__restrict__ velm,
  * Calculate the kinetic energies of each degree of freedom.
  */
 
-extern "C" __global__ void computeNormalizedKineticEnergies(const mixed4 *__restrict__ comVelm,
-                                                            const mixed4 *__restrict__ normVelm,
+extern "C" __global__ void computeNormalizedKineticEnergies(const mixed4 *__restrict__ velm,
+                                                            const mixed4 *__restrict__ comVelm,
                                                             const int *__restrict__ normalParticles,
                                                             const int2 *__restrict__ pairParticles,
                                                             double *__restrict__ kineticEnergyBuffer,
@@ -102,7 +96,7 @@ extern "C" __global__ void computeNormalizedKineticEnergies(const mixed4 *__rest
     // Add kinetic energy of ordinary particles.
     for (int i = tid; i < NUM_NORMAL_PARTICLES_NH; i += blockDim.x * gridDim.x) {
         int index = normalParticles[i];
-        mixed4 velocity = normVelm[index];
+        mixed4 velocity = velm[index];
         if (velocity.w != 0) {
             kineticEnergyBuffer[tid * (NUM_TEMP_GROUPS + 2)] +=
                     (velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z) / velocity.w;
@@ -112,8 +106,8 @@ extern "C" __global__ void computeNormalizedKineticEnergies(const mixed4 *__rest
     // Add kinetic energy of Drude particle pairs.
     for (int i = tid; i < NUM_PAIRS_NH; i += blockDim.x*gridDim.x) {
         int2 pair = pairParticles[i];
-        mixed4 velocity1 = normVelm[pair.x];
-        mixed4 velocity2 = normVelm[pair.y];
+        mixed4 velocity1 = velm[pair.x];
+        mixed4 velocity2 = velm[pair.y];
         mixed mass1 = RECIP(velocity1.w);
         mixed mass2 = RECIP(velocity2.w);
         mixed invTotalMass = RECIP(mass1+mass2);
@@ -173,24 +167,24 @@ extern "C" __global__ void sumNormalizedKineticEnergies(double *__restrict__ kin
  */
 
 extern "C" __global__ void integrateDrudeNoseHooverVelocityScale(mixed4 *__restrict__ velm,
-                                                                 const mixed4 *__restrict__ normVelm,
+                                                                 const mixed4 *__restrict__ comVelm,
+                                                                 const int *__restrict__ particleResId,
                                                                  const int *__restrict__ normalParticles,
                                                                  const int2 *__restrict__ pairParticles,
                                                                  const mixed *__restrict__ vscaleFactors) {
 
-    mixed vscale = vscaleFactors[0];
+    mixed vscaleAtom = vscaleFactors[0];
     mixed vscaleCOM = vscaleFactors[1];
     mixed vscaleDrude = vscaleFactors[2];
     // Update normal particles.
     for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_NORMAL_PARTICLES_NH; i += blockDim.x*gridDim.x) {
         int index = normalParticles[i];
-        mixed4 velocity = velm[index];
-        mixed4 velRel = normVelm[index];
-        if (velocity.w != 0) {
-            velocity.x = vscale*velRel.x + vscaleCOM*(velocity.x-velRel.x);
-            velocity.y = vscale*velRel.y + vscaleCOM*(velocity.y-velRel.y);
-            velocity.z = vscale*velRel.z + vscaleCOM*(velocity.z-velRel.z);
-            velm[index] = velocity;
+        int resid = particleResId[index];
+        mixed4 velCOM = comVelm[resid];
+        if (velm[index].w != 0) {
+            velm[index].x = vscaleAtom*velm[index].x + vscaleCOM*velCOM.x;
+            velm[index].y = vscaleAtom*velm[index].y + vscaleCOM*velCOM.y;
+            velm[index].z = vscaleAtom*velm[index].z + vscaleCOM*velCOM.z;
         }
     }
     
@@ -198,32 +192,30 @@ extern "C" __global__ void integrateDrudeNoseHooverVelocityScale(mixed4 *__restr
     
     for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_PAIRS_NH; i += blockDim.x*gridDim.x) {
         int2 particles = pairParticles[i];
-        mixed4 velocity1 = velm[particles.x];
-        mixed4 velocity2 = velm[particles.y];
-        mixed4 velRel1 = normVelm[particles.x];
-        mixed4 velRel2 = normVelm[particles.y];
-        mixed4 velCOM1 = velocity1 - velRel1;
-        mixed4 velCOM2 = velocity2 - velRel2;
-        mixed mass1 = RECIP(velocity1.w);
-        mixed mass2 = RECIP(velocity2.w);
+        int resid = particleResId[particles.x];
+        mixed4 velAtom1 = velm[particles.x];
+        mixed4 velAtom2 = velm[particles.y];
+        mixed4 velCOM = comVelm[resid];
+        mixed mass1 = RECIP(velAtom1.w);
+        mixed mass2 = RECIP(velAtom2.w);
         mixed invTotalMass = RECIP(mass1+mass2);
         mixed mass1fract = invTotalMass*mass1;
         mixed mass2fract = invTotalMass*mass2;
-        mixed4 cmVel = velRel1*mass1fract+velRel2*mass2fract;
-        mixed4 relVel = velRel2-velRel1;
-        cmVel.x = vscale*cmVel.x;
-        cmVel.y = vscale*cmVel.y;
-        cmVel.z = vscale*cmVel.z;
+        mixed4 cmVel = velAtom1*mass1fract+velAtom2*mass2fract;
+        mixed4 relVel = velAtom2-velAtom1;
+        cmVel.x = vscaleAtom*cmVel.x;
+        cmVel.y = vscaleAtom*cmVel.y;
+        cmVel.z = vscaleAtom*cmVel.z;
         relVel.x = vscaleDrude*relVel.x;
         relVel.y = vscaleDrude*relVel.y;
         relVel.z = vscaleDrude*relVel.z;
-        velocity1.x = cmVel.x-relVel.x*mass2fract + vscaleCOM*velCOM1.x;
-        velocity1.y = cmVel.y-relVel.y*mass2fract + vscaleCOM*velCOM1.y;
-        velocity1.z = cmVel.z-relVel.z*mass2fract + vscaleCOM*velCOM1.z;
-        velocity2.x = cmVel.x+relVel.x*mass1fract + vscaleCOM*velCOM2.x;
-        velocity2.y = cmVel.y+relVel.y*mass1fract + vscaleCOM*velCOM2.y;
-        velocity2.z = cmVel.z+relVel.z*mass1fract + vscaleCOM*velCOM2.z;
-        velm[particles.x] = velocity1;
-        velm[particles.y] = velocity2;
+        velAtom1.x = cmVel.x-relVel.x*mass2fract + vscaleCOM*velCOM.x;
+        velAtom1.y = cmVel.y-relVel.y*mass2fract + vscaleCOM*velCOM.y;
+        velAtom1.z = cmVel.z-relVel.z*mass2fract + vscaleCOM*velCOM.z;
+        velAtom2.x = cmVel.x+relVel.x*mass1fract + vscaleCOM*velCOM.x;
+        velAtom2.y = cmVel.y+relVel.y*mass1fract + vscaleCOM*velCOM.y;
+        velAtom2.z = cmVel.z+relVel.z*mass1fract + vscaleCOM*velCOM.z;
+        velm[particles.x] = velAtom1;
+        velm[particles.y] = velAtom2;
     }
 }

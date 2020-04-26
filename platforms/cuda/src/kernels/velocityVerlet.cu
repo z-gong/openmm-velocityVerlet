@@ -5,7 +5,7 @@
 
 extern "C" __global__ void velocityVerletIntegrateVelocities(mixed4 *__restrict__ velm,
                                                              const long long *__restrict__ force,
-                                                             const real3 *__restrict__ forceLD,
+                                                             const real3 *__restrict__ forceExtra,
                                                              mixed4 *__restrict__ posDelta,
                                                              const mixed2 *__restrict__ dt,
                                                              const mixed fscale,
@@ -16,13 +16,10 @@ extern "C" __global__ void velocityVerletIntegrateVelocities(mixed4 *__restrict_
     for (int index = blockIdx.x * blockDim.x + threadIdx.x; index < NUM_ATOMS; index += blockDim.x * gridDim.x) {
         mixed4 velocity = velm[index];
 
-//        if (abs(forceLD[index].x > 0.00001) || abs(forceLD[index].y > 0.00001) || abs(forceLD[index].z > 0.00001) )
-//            printf("FORCELD index %d , %f %f %f\n", index, forceLD[index].x, forceLD[index].y, forceLD[index].z);
-
         if (velocity.w != 0) {
-            velocity.x += 0.5 * stepSize * velocity.w * forceLD[index].x + fscale * velocity.w * force[index];
-            velocity.y += 0.5 * stepSize * velocity.w * forceLD[index].y + fscale * velocity.w * force[index + PADDED_NUM_ATOMS];
-            velocity.z += 0.5 * stepSize * velocity.w * forceLD[index].z + fscale * velocity.w * force[index + PADDED_NUM_ATOMS * 2];
+            velocity.x += 0.5 * stepSize * velocity.w * forceExtra[index].x + fscale * velocity.w * force[index];
+            velocity.y += 0.5 * stepSize * velocity.w * forceExtra[index].y + fscale * velocity.w * force[index + PADDED_NUM_ATOMS];
+            velocity.z += 0.5 * stepSize * velocity.w * forceExtra[index].z + fscale * velocity.w * force[index + PADDED_NUM_ATOMS * 2];
             velm[index] = velocity;
             if (updatePosDelta) {
                 posDelta[index] = make_mixed4(stepSize * velocity.x, stepSize * velocity.y, stepSize * velocity.z, 0);
