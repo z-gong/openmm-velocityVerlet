@@ -27,7 +27,7 @@ to ensure that the average temperature of molecular motion equals to preset valu
 from velocityverletplugin import VVIntegrator
 from simtk.unit import kelvin as K, picosecond as ps
 ...
-integrator = VVIntegrator(300 * K, 0.1 * ps, 1 * K, 0.025 * ps, 0.001 ps)
+integrator = VVIntegrator(300 * K, 10 / ps, 1 * K, 40 / ps, 0.001 * ps)
 ...
 ```
 
@@ -44,7 +44,7 @@ whereas Langevin thermostat on solid particles.
 from velocityverletplugin import VVIntegrator
 from simtk.unit import kelvin as K, picosecond as ps
 ...
-integrator = VVIntegrator(300 * K, 0.1 * ps, 1 * K, 0.025 * ps, 0.001 ps)
+integrator = VVIntegrator(300 * K, 10 / ps, 1 * K, 40 / ps, 0.001 * ps)
 for i in atoms_solid:
     integrator.addParticleLangevin(i)
 integrator.setFriction(5.0 / ps)
@@ -68,7 +68,7 @@ for more information.
 from velocityverletplugin import VVIntegrator
 from simtk.unit import kelvin as K, picosecond as ps, nanosecond as ns
 ...
-integrator = VVIntegrator(300 * K, 0.1 * ps, 1 * K, 0.025 * ps, 0.001 ps)
+integrator = VVIntegrator(300 * K, 10 / ps, 1 * K, 40 / ps, 0.001 * ps)
 integrator.setCosAcceleration(0.01 * nm/ps**2)
 ...
 print(integrator.getViscosity())
@@ -83,7 +83,7 @@ is an efficient approach to enforce constant voltage constraint for planar elect
 from velocityverletplugin import VVIntegrator
 from simtk.unit import kelvin as K, picosecond as ps, nanosecond as ns
 ...
-integrator = VVIntegrator(300 * K, 0.1 * ps, 1 * K, 0.025 * ps, 0.001 ps)
+integrator = VVIntegrator(300 * K, 10 / ps, 1 * K, 40 / ps, 0.001 * ps)
 for i_image, i_parent in zip(atoms_image, atoms_parent):
     integrator.addImagePair(i_image, i_parent)
 integrator.setMirrorLocation(length_box / 2)
@@ -99,7 +99,7 @@ Note that external electric field can also be done by using `CustomExternalForce
 from velocityverletplugin import VVIntegrator
 from simtk.unit import kelvin as K, picosecond as ps, nanosecond as ns, volt
 ...
-integrator = VVIntegrator(300 * K, 0.1 * ps, 1 * K, 0.025 * ps, 0.001 ps)
+integrator = VVIntegrator(300 * K, 10 / ps, 1 * K, 40 / ps, 0.001 * ps)
 for i in electrolytes:
     integrator.addParticleElectrolyte(i)
 integrator.setElectricField(1.0 * volt/nm)
