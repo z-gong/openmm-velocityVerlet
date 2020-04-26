@@ -73,7 +73,7 @@ extern "C" __global__ void velocityVerletIntegratePositions(real4 *__restrict__ 
 /**
  * Apply hard wall constraints
  */
-#include <assert.h>
+//#include <assert.h>
 extern "C" __global__ void applyHardWallConstraints(real4 *__restrict__ posq,
                                                     real4 *__restrict__ posqCorrection,
                                                     mixed4 *__restrict__ velm,

@@ -105,8 +105,7 @@ private:
         CudaModifyDrudeNoseKernel(std::string name, const Platform &platform, CudaContext &cu) :
                 ModifyDrudeNoseKernel(name, platform), cu(cu),
                 particlesNH(NULL), residuesNH(NULL), normalParticlesNH(NULL), pairParticlesNH(NULL),
-                particleResId(NULL), particleTempGroup(NULL),
-                particlesInResidues(NULL), particlesSortedByResId(NULL),
+                particleResId(NULL), particlesInResidues(NULL), particlesSortedByResId(NULL),
                 comVelm(NULL), normVelm(NULL), kineticEnergyBufferNH(NULL),
                 kineticEnergiesNH(NULL), vscaleFactorsNH(NULL) {
         }

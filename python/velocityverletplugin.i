@@ -102,8 +102,6 @@ public:
    bool getUseCOMTempGroup() const ;
    void setUseCOMTempGroup(int useCOMTempGroup) ;
    int getNumTempGroups() const ;
-   int addTempGroup() ;
-   void setParticleTempGroup(int particle, int tempGroup) ;
 
    %apply int& OUTPUT {int& tempGroup};
    void getParticleTempGroup(int particle, int& tempGroup) const;
