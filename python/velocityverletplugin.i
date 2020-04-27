@@ -101,11 +101,6 @@ public:
    void setLoopsPerStep(int loops) ;
    bool getUseCOMTempGroup() const ;
    void setUseCOMTempGroup(int useCOMTempGroup) ;
-   int getNumTempGroups() const ;
-
-   %apply int& OUTPUT {int& tempGroup};
-   void getParticleTempGroup(int particle, int& tempGroup) const;
-   %clear int& tempGroup;
 
    int addParticleLangevin(int particle) ;
    int getRandomNumberSeed() const ;
