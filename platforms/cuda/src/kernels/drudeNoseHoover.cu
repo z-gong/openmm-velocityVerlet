@@ -1,62 +1,50 @@
 /**
- * Calculate the center of mass velocities of each residues
+ * Calculate the center of mass velocities of each molecules
  */
 
 extern "C" __global__ void calcCOMVelocities(const mixed4 *__restrict__ velm,
                                              mixed4 *__restrict__ comVelm,
-                                             const int2 *__restrict__ particlesInResidues,
-                                             const int *__restrict__ particlesSortedByResId,
-                                             const int *__restrict__ residuesNH) {
+                                             const int2 *__restrict__ particlesInMolecules,
+                                             const int *__restrict__ particlesSortedByMolId,
+                                             const int *__restrict__ moleculesNH) {
 
-    // Get COM velocities
-    for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_RESIDUES_NH; i += blockDim.x*gridDim.x) {
-        int resid = residuesNH[i];
-        comVelm[resid] = make_mixed4(0,0,0,0);
+    for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_MOLECULES_NH; i += blockDim.x*gridDim.x) {
+        int id_mol = moleculesNH[i];
+        comVelm[id_mol] = make_mixed4(0,0,0,0);
         mixed comMass = 0.0;
-        for (int j = 0; j < particlesInResidues[resid].x; j++) {
-            int index = particlesSortedByResId[particlesInResidues[resid].y + j];
+        for (int j = 0; j < particlesInMolecules[id_mol].x; j++) {
+            int index = particlesSortedByMolId[particlesInMolecules[id_mol].y + j];
             mixed4 velocity = velm[index];
             if (velocity.w != 0) {
                 mixed mass = RECIP(velocity.w);
-                comVelm[resid].x += velocity.x * mass;
-                comVelm[resid].y += velocity.y * mass;
-                comVelm[resid].z += velocity.z * mass;
+                comVelm[id_mol].x += velocity.x * mass;
+                comVelm[id_mol].y += velocity.y * mass;
+                comVelm[id_mol].z += velocity.z * mass;
                 comMass += mass;
             }
         }
-        comVelm[resid].w = RECIP(comMass);
-        comVelm[resid].x *= comVelm[resid].w;
-        comVelm[resid].y *= comVelm[resid].w;
-        comVelm[resid].z *= comVelm[resid].w;
-
-//        if (i == 0)
-//            printf("residue %d has %d particles and starts at %d and vel %f,%f,%f and mass is %f \n",
-//                   i, particlesInResidues[i].x, particlesInResidues[i].y,
-//                   comVelm[i].x, comVelm[i].y, comVelm[i].z, RECIP(comVelm[i].w));
+        comVelm[id_mol].w = RECIP(comMass);
+        comVelm[id_mol].x *= comVelm[id_mol].w;
+        comVelm[id_mol].y *= comVelm[id_mol].w;
+        comVelm[id_mol].z *= comVelm[id_mol].w;
     }
-
 }
 
 /**
- * Calculate the relative velocities of each particles relative to the center of mass of each residues
+ * Calculate the relative velocities of each particles relative to the COM of the molecule
  */
 
 extern "C" __global__ void normalizeVelocities(mixed4 *__restrict__ velm,
                                                const mixed4 *__restrict__ comVelm,
-                                               const int *__restrict__ particleResId,
+                                               const int *__restrict__ particleMolId,
                                                const int *__restrict__ particlesNH) {
 
-    // Get Normalized velocities
     for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_PARTICLES_NH; i += blockDim.x*gridDim.x) {
         int index = particlesNH[i];
-        int resid = particleResId[index];
-        velm[index].x -= comVelm[resid].x;
-        velm[index].y -= comVelm[resid].y;
-        velm[index].z -= comVelm[resid].z;
-
-//        if (i == 0)
-//            printf("Particle: %d, Norm velocity: %f, velocity: %f, comVel: %f, mass: %f\n",
-//                   i, normVelm[i].x, velm[i].x, comVelm[resid].x, RECIP(normVelm[i].w));
+        int id_mol = particleMolId[index];
+        velm[index].x -= comVelm[id_mol].x;
+        velm[index].y -= comVelm[id_mol].y;
+        velm[index].z -= comVelm[id_mol].z;
     }
 }
 
@@ -69,28 +57,19 @@ extern "C" __global__ void computeNormalizedKineticEnergies(const mixed4 *__rest
                                                             const int *__restrict__ normalParticles,
                                                             const int2 *__restrict__ pairParticles,
                                                             double *__restrict__ kineticEnergyBuffer,
-                                                            const int *__restrict__ residuesNH,
+                                                            const int *__restrict__ moleculesNH,
                                                             int bufferSize) {
     /**
-     * the length of kineticEnergyBuff is numParticlesNH*(NUM_TEMP_GROUPS+2)
+     * the length of kineticEnergyBuff is numParticlesNH*NUM_TG
      * numThreads can be a little bit larger than numParticlesNH
-     * each thread initialize (NUM_TEMP_GROUPS+2) sequential elements of kineticEnergyBuffer
+     * each thread initialize NUM_TG sequential elements of kineticEnergyBuffer
      * careful to not cross the boundary of kineticEnergyBuffer
      */
 
     unsigned int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    if ((tid + 1) * (NUM_TEMP_GROUPS + 2) <= bufferSize) {
-        for (int i = 0; i < NUM_TEMP_GROUPS + 2; i++)
-            kineticEnergyBuffer[tid * (NUM_TEMP_GROUPS + 2) + i] = 0;
-    }
-
-    // Add kinetic energy of molecular motions.
-    for (int i = tid; i < NUM_RESIDUES_NH; i += blockDim.x * gridDim.x) {
-        int resid = residuesNH[i];
-        mixed4 velocity = comVelm[resid];
-        if (velocity.w != 0)
-            kineticEnergyBuffer[tid * (NUM_TEMP_GROUPS + 2) + NUM_TEMP_GROUPS] +=
-                    (velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z) / velocity.w;
+    if ((tid + 1) * NUM_TG <= bufferSize) {
+        for (int i = 0; i < NUM_TG; i++)
+            kineticEnergyBuffer[tid * NUM_TG + i] = 0;
     }
 
     // Add kinetic energy of ordinary particles.
@@ -98,12 +77,23 @@ extern "C" __global__ void computeNormalizedKineticEnergies(const mixed4 *__rest
         int index = normalParticles[i];
         mixed4 velocity = velm[index];
         if (velocity.w != 0) {
-            kineticEnergyBuffer[tid * (NUM_TEMP_GROUPS + 2)] +=
+            kineticEnergyBuffer[tid * NUM_TG + TG_ATOM] +=
                     (velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z) / velocity.w;
         }
     }
 
-    // Add kinetic energy of Drude particle pairs.
+#if NUM_TG > TG_COM
+    // Add kinetic energy of molecular motions.
+    for (int i = tid; i < NUM_MOLECULES_NH; i += blockDim.x * gridDim.x) {
+        int id_mol = moleculesNH[i];
+        mixed4 velocity = comVelm[id_mol];
+        if (velocity.w != 0)
+            kineticEnergyBuffer[tid * NUM_TG + TG_COM] +=
+                    (velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z) / velocity.w;
+    }
+#endif
+
+    // Add kinetic energy of Drude pairs.
     for (int i = tid; i < NUM_PAIRS_NH; i += blockDim.x*gridDim.x) {
         int2 pair = pairParticles[i];
         mixed4 velocity1 = velm[pair.x];
@@ -117,8 +107,10 @@ extern "C" __global__ void computeNormalizedKineticEnergies(const mixed4 *__rest
         mixed4 cmVel = velocity1*mass1fract+velocity2*mass2fract;
         mixed4 relVel = velocity1-velocity2;
 
-        kineticEnergyBuffer[tid*(NUM_TEMP_GROUPS+2)] += (cmVel.x*cmVel.x + cmVel.y*cmVel.y + cmVel.z*cmVel.z)*(mass1+mass2);
-        kineticEnergyBuffer[tid*(NUM_TEMP_GROUPS+2)+NUM_TEMP_GROUPS+1] += (relVel.x*relVel.x + relVel.y*relVel.y + relVel.z*relVel.z)*RECIP(invReducedMass);
+        kineticEnergyBuffer[tid * NUM_TG + TG_ATOM] +=
+                (cmVel.x * cmVel.x + cmVel.y * cmVel.y + cmVel.z * cmVel.z) * (mass1 + mass2);
+        kineticEnergyBuffer[tid * NUM_TG + TG_DRUDE] +=
+                (relVel.x * relVel.x + relVel.y * relVel.y + relVel.z * relVel.z) / invReducedMass;
     }
 }
 
@@ -130,33 +122,32 @@ extern "C" __global__ void sumNormalizedKineticEnergies(double *__restrict__ kin
                                                         double *__restrict__ kineticEnergies,
                                                         int bufferSize) {
     /**
-     * Sum kineticEnergyBuffer
      * The numThreads of this kernel equals to threadBlockSize.
      * So there is only one threadBlock for this kernel
      */
     extern __shared__ double temp[];
     unsigned int tid = threadIdx.x;
 
-    for (unsigned int i = 0; i < NUM_TEMP_GROUPS + 2; i++)
-        temp[tid * (NUM_TEMP_GROUPS + 2) + i] = 0;
+    for (unsigned int i = 0; i < NUM_TG; i++)
+        temp[tid * NUM_TG + i] = 0;
     __syncthreads();
 
-    for (unsigned int i = 0; i < NUM_TEMP_GROUPS + 2; i++) {
-        for (unsigned int index = tid * (NUM_TEMP_GROUPS + 2);
-             index + i < bufferSize; index += blockDim.x * (NUM_TEMP_GROUPS + 2)) {
-            temp[tid * (NUM_TEMP_GROUPS + 2) + i] += kineticEnergyBuffer[index + i];
+    for (unsigned int i = 0; i < NUM_TG; i++) {
+        for (unsigned int index = tid * NUM_TG;
+             index + i < bufferSize; index += blockDim.x * NUM_TG) {
+            temp[tid * NUM_TG + i] += kineticEnergyBuffer[index + i];
         }
     }
     __syncthreads();
-    for (unsigned int i = 0; i < NUM_TEMP_GROUPS + 2; i++) {
+    for (unsigned int i = 0; i < NUM_TG; i++) {
         for (unsigned int k = blockDim.x / 2; k > 0; k >>= 1) {
             if (tid < k)
-                temp[tid * (NUM_TEMP_GROUPS + 2) + i] += temp[(tid + k) * (NUM_TEMP_GROUPS + 2) + i];
+                temp[tid * NUM_TG + i] += temp[(tid + k) * NUM_TG + i];
             __syncthreads();
         }
     }
     if (tid == 0) {
-        for (unsigned int i = 0; i < NUM_TEMP_GROUPS + 2; i++) {
+        for (unsigned int i = 0; i < NUM_TG; i++) {
             kineticEnergies[i] = temp[i];
         }
     }
@@ -166,12 +157,12 @@ extern "C" __global__ void sumNormalizedKineticEnergies(double *__restrict__ kin
  * Perform the velocity scaling of NoseHoover thermostat.
  */
 
-extern "C" __global__ void integrateDrudeNoseHooverVelocityScale(mixed4 *__restrict__ velm,
-                                                                 const mixed4 *__restrict__ comVelm,
-                                                                 const int *__restrict__ particleResId,
-                                                                 const int *__restrict__ normalParticles,
-                                                                 const int2 *__restrict__ pairParticles,
-                                                                 const double *__restrict__ vscaleFactors) {
+extern "C" __global__ void scaleVelocity(mixed4 *__restrict__ velm,
+                                         const mixed4 *__restrict__ comVelm,
+                                         const int *__restrict__ particleMolId,
+                                         const int *__restrict__ normalParticles,
+                                         const int2 *__restrict__ pairParticles,
+                                         const double *__restrict__ vscaleFactors) {
 
     double vscaleAtom = vscaleFactors[0];
     double vscaleCOM = vscaleFactors[1];
@@ -179,8 +170,8 @@ extern "C" __global__ void integrateDrudeNoseHooverVelocityScale(mixed4 *__restr
     // Update normal particles.
     for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_NORMAL_PARTICLES_NH; i += blockDim.x*gridDim.x) {
         int index = normalParticles[i];
-        int resid = particleResId[index];
-        mixed4 velCOM = comVelm[resid];
+        int id_mol = particleMolId[index];
+        mixed4 velCOM = comVelm[id_mol];
         if (velm[index].w != 0) {
             velm[index].x = vscaleAtom*velm[index].x + vscaleCOM*velCOM.x;
             velm[index].y = vscaleAtom*velm[index].y + vscaleCOM*velCOM.y;
@@ -192,10 +183,10 @@ extern "C" __global__ void integrateDrudeNoseHooverVelocityScale(mixed4 *__restr
     
     for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_PAIRS_NH; i += blockDim.x*gridDim.x) {
         int2 particles = pairParticles[i];
-        int resid = particleResId[particles.x];
+        int id_mol = particleMolId[particles.x];
         mixed4 velAtom1 = velm[particles.x];
         mixed4 velAtom2 = velm[particles.y];
-        mixed4 velCOM = comVelm[resid];
+        mixed4 velCOM = comVelm[id_mol];
         mixed mass1 = RECIP(velAtom1.w);
         mixed mass2 = RECIP(velAtom2.w);
         mixed invTotalMass = RECIP(mass1+mass2);

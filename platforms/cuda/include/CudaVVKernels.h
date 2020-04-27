@@ -98,14 +98,14 @@ private:
 };
 
 /**
- * This kernel is invoked by DrudeNoseHooverIntegrator to take one time step
+ * This kernel performs Nose-Hoover thermostat for Drude model for VVIntegrator
  */
     class CudaModifyDrudeNoseKernel : public ModifyDrudeNoseKernel {
     public:
         CudaModifyDrudeNoseKernel(std::string name, const Platform &platform, CudaContext &cu) :
                 ModifyDrudeNoseKernel(name, platform), cu(cu),
-                particlesNH(NULL), residuesNH(NULL), normalParticlesNH(NULL), pairParticlesNH(NULL),
-                particleResId(NULL), particlesInResidues(NULL), particlesSortedByResId(NULL),
+                particlesNH(NULL), moleculesNH(NULL), normalParticlesNH(NULL), pairParticlesNH(NULL),
+                particleMolId(NULL), particlesInMolecules(NULL), particlesSortedByMolId(NULL),
                 comVelm(NULL), kineticEnergyBufferNH(NULL),
                 kineticEnergiesNH(NULL), vscaleFactorsNH(NULL) {
         }
@@ -131,27 +131,27 @@ private:
 
     private:
         CudaContext &cu;
-        int numAtoms;
+        int numAtoms, numTempGroup;
         double realKbT, drudeKbT;
         CudaArray *particlesNH;
-        CudaArray *residuesNH;
+        CudaArray *moleculesNH;
         CudaArray *normalParticlesNH;
         CudaArray *pairParticlesNH;
-        CudaArray *particleResId;
-        CudaArray *particlesInResidues;
-        CudaArray *particlesSortedByResId;
+        CudaArray *particleMolId;
+        CudaArray *particlesInMolecules;
+        CudaArray *particlesSortedByMolId;
         CudaArray *comVelm;
         CudaArray *kineticEnergyBufferNH;
         CudaArray *kineticEnergiesNH; // 2 * kinetic energy
         CudaArray *vscaleFactorsNH;
         std::vector<double> tempGroupDof, tempGroupNkbT;
         std::vector<std::vector<double> > etaMass, eta, etaDot, etaDotDot;
-        std::vector<int> particlesNHVec, residuesNHVec;
+        std::vector<int> particlesNHVec, moleculesNHVec;
         std::vector<int> normalParticlesNHVec;
         std::vector<int2> pairParticlesNHVec;
-        std::vector<int> particleResIdVec;
-        std::vector<int2> particlesInResiduesVec;
-        std::vector<int> particlesSortedByResIdVec;
+        std::vector<int> particleMolIdVec;
+        std::vector<int2> particlesInMoleculesVec;
+        std::vector<int> particlesSortedByMolIdVec;
         std::vector<double> kineticEnergiesNHVec; // 2 * kinetic energy
         std::vector<double> vscaleFactorsNHVec;
         CUfunction kernelKE, kernelKESum, kernelScale, kernelNormVel, kernelCOMVel;
@@ -265,12 +265,12 @@ private:
 /**
  * This kernel is invoked by DrudeNoseHooverIntegrator to take one time step
  */
-    class CudaModifyPeriodicPerturbationKernel: public ModifyPeriodicPerturbationKernel{
+    class CudaModifyCosineAccelerateKernel: public ModifyCosineAccelerateKernel{
     public:
-        CudaModifyPeriodicPerturbationKernel(std::string name, const Platform &platform, CudaContext &cu) :
-                ModifyPeriodicPerturbationKernel(name, platform), cu(cu), vMaxBuffer(NULL) {
+        CudaModifyCosineAccelerateKernel(std::string name, const Platform &platform, CudaContext &cu) :
+                ModifyCosineAccelerateKernel(name, platform), cu(cu), vMaxBuffer(NULL) {
         }
-        ~CudaModifyPeriodicPerturbationKernel();
+        ~CudaModifyCosineAccelerateKernel();
         /**
          * Initialize the kernel.
          *
@@ -284,7 +284,7 @@ private:
          * @param context
          * @param integrator
          */
-        void applyCosForce(ContextImpl& context, const VVIntegrator& integrator);
+        void applyCosineForce(ContextImpl& context, const VVIntegrator& integrator);
         /**
          * Calculate the velocity bias because of the periodic perturbation force
          * @param context

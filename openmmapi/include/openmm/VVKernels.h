@@ -92,7 +92,7 @@ public:
     class ModifyDrudeNoseKernel: public KernelImpl {
     public:
         static std::string Name() {
-            return "DrudeNoseHoover";
+            return "ModifyDrudeNose";
         }
         ModifyDrudeNoseKernel(std::string name, const Platform& platform) : KernelImpl(name, platform) {
         }
@@ -114,7 +114,7 @@ public:
     };
 
 /**
- * This kernel is invoked by DrudeNoseHooverIntegrator to update image charge positions
+ * This kernel performs Nose-Hoover thermostat for Drude model for VVIntegrator
  */
     class ModifyDrudeLangevinKernel: public KernelImpl {
     public:
@@ -197,12 +197,12 @@ class ModifyImageChargeKernel: public KernelImpl {
 /**
  * This kernel is invoked by DrudeNoseHooverIntegrator to update image charge positions
  */
-    class ModifyPeriodicPerturbationKernel: public KernelImpl {
+    class ModifyCosineAccelerateKernel: public KernelImpl {
     public:
         static std::string Name() {
-            return "ModifyPeriodicPerturbation";
+            return "ModifyCosineAccelerate";
         }
-        ModifyPeriodicPerturbationKernel(std::string name, const Platform& platform) : KernelImpl(name, platform) {
+        ModifyCosineAccelerateKernel(std::string name, const Platform& platform) : KernelImpl(name, platform) {
         }
         /**
          * Initialize the kernel.
@@ -218,7 +218,7 @@ class ModifyImageChargeKernel: public KernelImpl {
          * @param context        the context in which to execute this kernel
          * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
          */
-        virtual void applyCosForce(ContextImpl& context, const VVIntegrator& integrator) = 0;
+        virtual void applyCosineForce(ContextImpl& context, const VVIntegrator& integrator) = 0;
         virtual void calcVelocityBias(ContextImpl& context, const VVIntegrator& integrator) = 0;
         virtual void removeVelocityBias(ContextImpl& context, const VVIntegrator& integrator) = 0;
         virtual void restoreVelocityBias(ContextImpl& context, const VVIntegrator& integrator) = 0;

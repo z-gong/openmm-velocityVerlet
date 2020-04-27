@@ -46,7 +46,7 @@ extern "C" OPENMM_EXPORT void registerKernelFactories() {
         platform.registerKernelFactory(ModifyDrudeLangevinKernel::Name(), factory);
         platform.registerKernelFactory(ModifyImageChargeKernel::Name(), factory);
         platform.registerKernelFactory(ModifyElectricFieldKernel::Name(), factory);
-        platform.registerKernelFactory(ModifyPeriodicPerturbationKernel::Name(), factory);
+        platform.registerKernelFactory(ModifyCosineAccelerateKernel::Name(), factory);
     }
     catch (std::exception ex) {
         // Ignore
@@ -75,7 +75,7 @@ KernelImpl* CudaVVKernelFactory::createKernelImpl(std::string name, const Platfo
         return new CudaModifyImageChargeKernel(name, platform, cu);
     if (name == ModifyElectricFieldKernel::Name())
         return new CudaModifyElectricFieldKernel(name, platform, cu);
-    if (name == ModifyPeriodicPerturbationKernel::Name())
-        return new CudaModifyPeriodicPerturbationKernel(name, platform, cu);
+    if (name == ModifyCosineAccelerateKernel::Name())
+        return new CudaModifyCosineAccelerateKernel(name, platform, cu);
     throw OpenMMException((std::string("Tried to create kernel with illegal kernel name '")+name+"'").c_str());
 }

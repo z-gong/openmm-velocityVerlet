@@ -20,7 +20,7 @@ extern "C" __global__ void updateImagePositions(real4 *__restrict__ posq,
         posqCorrection[index_img].y = posqCorrection[index_par].y;
 
 #ifdef USE_MIXED_PRECISION
-        mixed z = posq[index_par].z + (mixed) posqCorrection[index_par].z;
+        mixed z = (mixed) posq[index_par].z + (mixed) posqCorrection[index_par].z;
         z = mirror * 2 - z;
         posq[index_img].z = (real) z;
         posqCorrection[index_img].z = (real) (z - (real) z);

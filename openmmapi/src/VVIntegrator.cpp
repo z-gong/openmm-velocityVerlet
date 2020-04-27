@@ -77,14 +77,14 @@ int VVIntegrator::addImagePair(int image, int parent) {
     return imagePairs.size();
 }
 
-double VVIntegrator::getResInvMass(int resid) const {
-    ASSERT_VALID_INDEX(resid, residueInvMasses);
-    return residueInvMasses[resid];
+double VVIntegrator::getMoleculeInvMass(int molid) const {
+    ASSERT_VALID_INDEX(molid, moleculeInvMasses);
+    return moleculeInvMasses[molid];
 }
 
-int VVIntegrator::getParticleResId(int particle) const {
-    ASSERT_VALID_INDEX(particle, particleResId);
-    return particleResId[particle];
+int VVIntegrator::getParticleMolId(int particle) const {
+    ASSERT_VALID_INDEX(particle, particleMolId);
+    return particleMolId[particle];
 }
 
 void VVIntegrator::initialize(ContextImpl& contextRef) {
@@ -113,34 +113,32 @@ void VVIntegrator::initialize(ContextImpl& contextRef) {
             printf("WARNING: You are not using COM temperature group for Drude model\n");
     }
 
-    // TODO Should consider the special case where a molecule contains only one real atom
-
-    particleResId = std::vector<int>(system.getNumParticles(), -1);
+    particleMolId = std::vector<int>(system.getNumParticles(), -1);
     std::vector<std::vector<int> > molecules = contextRef.getMolecules();
     int numResidues = (int) molecules.size();
     for (int i = 0; i < numResidues; i++)
         for (int j = 0; j < (int) molecules[i].size(); j++)
-            particleResId[molecules[i][j]] = i;
+            particleMolId[molecules[i][j]] = i;
 
-    residueMasses = std::vector<double>(numResidues, 0.0);
+    moleculeMasses = std::vector<double>(numResidues, 0.0);
     for (int i = 0; i < system.getNumParticles(); i++)
-        residueMasses[particleResId[i]] += system.getParticleMass(i);
+        moleculeMasses[particleMolId[i]] += system.getParticleMass(i);
 
     for (int i = 0; i < numResidues; i++)
-        residueInvMasses.push_back(1.0/residueMasses[i]);
+        moleculeInvMasses.push_back(1.0 / moleculeMasses[i]);
 
     // handle particles thermostated by Langevin dynamics
     for (int i = 0; i < system.getNumParticles(); i++) {
         if (!isParticleLD(i) && !isParticleImage(i)) {
             particlesNH.push_back(i);
-            if (std::find(residuesNH.begin(), residuesNH.end(), getParticleResId(i)) == residuesNH.end()) {
-                residuesNH.push_back(getParticleResId(i));
+            if (std::find(moleculesNH.begin(), moleculesNH.end(), getParticleMolId(i)) == moleculesNH.end()) {
+                moleculesNH.push_back(getParticleMolId(i));
             }
         }
     }
     for (int i = 0; i < system.getNumParticles(); i++) {
         if (isParticleLD(i)
-            && std::find(residuesNH.begin(), residuesNH.end(), getParticleResId(i)) != residuesNH.end()) {
+            && std::find(moleculesNH.begin(), moleculesNH.end(), getParticleMolId(i)) != moleculesNH.end()) {
             throw OpenMMException("NH and Langevin thermostat cannot be applied on the same molecule");
         }
     }
@@ -170,8 +168,8 @@ void VVIntegrator::initialize(ContextImpl& contextRef) {
         efKernel.getAs<ModifyElectricFieldKernel>().initialize(contextRef.getSystem(), *this, vvKernel);
     }
     if (cosAcceleration!=0){
-        ppKernel = context->getPlatform().createKernel(ModifyPeriodicPerturbationKernel::Name(), contextRef);
-        ppKernel.getAs<ModifyPeriodicPerturbationKernel>().initialize(contextRef.getSystem(), *this, vvKernel);
+        ppKernel = context->getPlatform().createKernel(ModifyCosineAccelerateKernel::Name(), contextRef);
+        ppKernel.getAs<ModifyCosineAccelerateKernel>().initialize(contextRef.getSystem(), *this, vvKernel);
     }
 }
 
@@ -191,7 +189,7 @@ vector<string> VVIntegrator::getKernelNames() {
     names.push_back(ModifyDrudeLangevinKernel::Name());
     names.push_back(ModifyImageChargeKernel::Name());
     names.push_back(ModifyElectricFieldKernel::Name());
-    names.push_back(ModifyPeriodicPerturbationKernel::Name());
+    names.push_back(ModifyCosineAccelerateKernel::Name());
     return names;
 }
 
@@ -234,12 +232,12 @@ void VVIntegrator::step(int steps) {
         // First half velocity verlet integrate (half-step velocity and full-step position update)
         if (!particlesNH.empty()){
             if (cosAcceleration != 0){
-                ppKernel.getAs<ModifyPeriodicPerturbationKernel>().calcVelocityBias(*context, *this);
-                ppKernel.getAs<ModifyPeriodicPerturbationKernel>().removeVelocityBias(*context, *this);
+                ppKernel.getAs<ModifyCosineAccelerateKernel>().calcVelocityBias(*context, *this);
+                ppKernel.getAs<ModifyCosineAccelerateKernel>().removeVelocityBias(*context, *this);
             }
             nhKernel.getAs<ModifyDrudeNoseKernel>().scaleVelocity(*context, *this);
             if (cosAcceleration != 0){
-                ppKernel.getAs<ModifyPeriodicPerturbationKernel>().restoreVelocityBias(*context, *this);
+                ppKernel.getAs<ModifyCosineAccelerateKernel>().restoreVelocityBias(*context, *this);
             }
         }
         vvKernel.getAs<IntegrateVVStepKernel>().firstIntegrate(*context, *this, forcesAreValid);
@@ -260,18 +258,18 @@ void VVIntegrator::step(int steps) {
         if (!particlesElectrolyte.empty())
             efKernel.getAs<ModifyElectricFieldKernel>().applyElectricForce(*context, *this);
         if (cosAcceleration != 0)
-            ppKernel.getAs<ModifyPeriodicPerturbationKernel>().applyCosForce(*context, *this);
+            ppKernel.getAs<ModifyCosineAccelerateKernel>().applyCosineForce(*context, *this);
 
         // Second half velocity verlet integrate (full-step velocity update)
         vvKernel.getAs<IntegrateVVStepKernel>().secondIntegrate(*context, *this, forcesAreValid);
         if (!particlesNH.empty()) {
             if (cosAcceleration != 0){
-                ppKernel.getAs<ModifyPeriodicPerturbationKernel>().calcVelocityBias(*context, *this);
-                ppKernel.getAs<ModifyPeriodicPerturbationKernel>().removeVelocityBias(*context, *this);
+                ppKernel.getAs<ModifyCosineAccelerateKernel>().calcVelocityBias(*context, *this);
+                ppKernel.getAs<ModifyCosineAccelerateKernel>().removeVelocityBias(*context, *this);
             }
             nhKernel.getAs<ModifyDrudeNoseKernel>().scaleVelocity(*context, *this);
             if (cosAcceleration != 0){
-                ppKernel.getAs<ModifyPeriodicPerturbationKernel>().restoreVelocityBias(*context, *this);
+                ppKernel.getAs<ModifyCosineAccelerateKernel>().restoreVelocityBias(*context, *this);
             }
         }
     }
@@ -318,6 +316,6 @@ void VVIntegrator::propagateNHChain(std::vector<double> &eta, std::vector<double
 std::vector<double> VVIntegrator::getViscosity() {
     double vMax = 0, invVis = 0;
     if (cosAcceleration != 0)
-        ppKernel.getAs<ModifyPeriodicPerturbationKernel>().calcViscosity(*context, *this, vMax, invVis);
+        ppKernel.getAs<ModifyCosineAccelerateKernel>().calcViscosity(*context, *this, vMax, invVis);
     return std::vector<double>{vMax, invVis};
 }

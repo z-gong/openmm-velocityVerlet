@@ -40,18 +40,10 @@
 namespace OpenMM {
 
 /**
- * This Integrator simulates systems that include Drude particles.  It applies two different NoseHoover
- * thermostats to different parts of the system.  The first is applied to ordinary particles (ones that
- * are not part of a Drude particle pair), as well as to the center of mass of each Drude particle pair.
- * A second thermostat, typically with a much lower temperature, is applied to the relative internal
- * displacement of each pair.
- *
- * This integrator can optionally set an upper limit on how far any Drude particle is ever allowed to
- * get from its parent particle.  This can sometimes help to improve stability.  The limit is enforced
- * with a hard wall constraint.
- * 
- * This Integrator requires the System to include a DrudeForce, which it uses to identify the Drude
- * particles.
+ * This Integrator simulates systems with velocity-Verlet algorithm. It works for both
+ * non-polarizable model and Drude Model. Nose-Hoover thermostat and/or Langevin thermostat
+ * can be applied for different parts of the system. For Drude model, the temperature-grouped
+ * Nose-Hoover thermostat is supported.
  */
 
 class OPENMM_EXPORT_DRUDE VVIntegrator : public Integrator {
@@ -66,7 +58,6 @@ public:
      * @param stepSize           the step size with which to integrator the system (in picoseconds)
      * @param numNHChains        the number of Nose-Hoover chains (integer)
      * @param loopsPerStep       the number of loops of NH velocity scaling per single step (integer)
-     * @param useCOMTempGroup    whether to set molecular COM motion as a separate temperature group (bool)
      */
     VVIntegrator(double temperature, double frequency, double drudeTemperature, double drudeFrequency, double stepSize, int numNHChains=3, int loopsPerStep=1);
 
@@ -88,19 +79,19 @@ public:
         temperature = temp;
     }
     /**
-     * Get the coupling time t which determines how quickly the system is coupled to
-     * the main heat bath (in ps).
+     * Get the coupling strength which determines how strongly the system is coupled to
+     * the main heat bath (in /ps).
      *
-     * @return the coupling time, measured in ps
+     * @return the coupling strength, measured in /ps
      */
     double getFrequency() const {
         return frequency;
     }
     /**
-     * Set the coupling time which determines how quickly the system is coupled to
-     * the main heat bath (in ps).
+     * Set the coupling strength which determines how strongly the system is coupled to
+     * the main heat bath (in /ps).
      *
-     * @param tau    the coupling time, measured in ps
+     * @param tau    the coupling strength, measured in /ps
      */
     void setFrequency(double tau) {
         frequency = tau;
@@ -122,19 +113,19 @@ public:
         drudeTemperature = temp;
     }
     /**
-     * Get the coupling time which determines how quickly the internal coordinates of Drude particles
-     * are coupled to the heat bath (in ps).
+     * Get the coupling strength which determines how strongly the internal coordinates of Drude particles
+     * are coupled to the heat bath (in /ps).
      *
-     * @return the coupling time, measured in ps
+     * @return the coupling strength, measured in /ps
      */
     double getDrudeFrequency() const {
         return drudeFrequency;
     }
     /**
-     * Set the coupling time which determines how quickly the internal coordinates of Drude particles
-     * are coupled to the heat bath (in ps).
+     * Set the coupling strength which determines how strongly the internal coordinates of Drude particles
+     * are coupled to the heat bath (in /ps).
      *
-     * @param tau    the coupling time, measured in ps
+     * @param tau    the coupling strength, measured in /ps
      */
     void setDrudeFrequency(double tau) {
         drudeFrequency = tau;
@@ -180,10 +171,7 @@ public:
         return useCOMTempGroup;
     }
     /**
-     * Set whether to use COM Temperature group or not (one should always use COM temp group)
-     *
-     * @deprecated
-     * @param useCOMGroup    boolean, whether to use COM temperature group or not
+     * Set whether to use COM Temperature group or not
      */
     void setUseCOMTempGroup(bool use) {
         useCOMTempGroup = use;
@@ -204,27 +192,8 @@ public:
         maxDrudeDistance = distance;
     };
     /**
-     * Get the number of temperature groups for particles which independent thermal bath is used.
-     *
-     * @deprecated
-     * @return the number of temperature groups for real d.o.f
-     */
-    int getNumTempGroups() const {
-        return 1;
-    }
-    /**
-     * Get the temperature group of a real particle.
-     *
-     * @deprecated
-     * @param particle              the index of the particle for which to get parameters
-     * @param[out] tempGroup        the index of the temperature group to which the particle is assigned
-     */
-    void getParticleTempGroup(int particle, int& tempGroup) const {
-        tempGroup = 0;
-    }
-    /**
      * Thermolize this particle with Langevin thermostat instead of Nose-Hoover
-     * @param particle The indice of particle to be themrostated by Langevin dynamics
+     * @param particle    The index of particle to be themrostated by Langevin dynamics
      * @return the number of atoms that will be thermostated by Langevin dynamics
      */
     int addParticleLangevin(int particle) {
@@ -234,7 +203,7 @@ public:
     /**
      * Get the friction of Langevin thermostat for real atoms (in /ps).
      *
-     * @return the coupling time, measured in ps
+     * @return the friction, measured in /ps
      */
     double getFriction() const {
         return friction;
@@ -248,7 +217,7 @@ public:
     /**
      * Get the friction of Langevin thermostat for Drude particles (in /ps).
      *
-     * @return the coupling time, measured in ps
+     * @return the friction, measured in /ps
      */
     double getDrudeFriction() const {
         return drudeFriction;
@@ -260,7 +229,7 @@ public:
         drudeFriction = fric;
     }
     /**
-     * Get the random number seed.  See setRandomNumberSeed() for details.
+     * Get the random number seed. See setRandomNumberSeed() for details.
      */
     int getRandomNumberSeed() const {
         return randomNumberSeed;
@@ -282,13 +251,13 @@ public:
     }
     /**
      * Set a particle as image of another particle
-     * @param image the index of image particle
-     * @param parent the index of the parent of this iamge particle
+     * @param image       The index of image particle
+     * @param parent      The index of the parent of this image particle
      * @return the number of image particles in the system
      */
     int addImagePair(int image, int parent);
     /**
-     * Get the indices of particles thermolized by NH
+     * Get all the image pairs
      * @return
      */
     const std::vector<std::pair<int, int> > & getImagePairs() const {
@@ -325,7 +294,7 @@ public:
     }
     /**
      * Treat this particle as electrolyte so the electric field will applied on it
-     * @param particle
+     * @param particle    The index of particle treated as electrolytes
      * @return the number of electrolyte particles
      */
     int addParticleElectrolyte(int particle) {
@@ -354,11 +323,11 @@ public:
         return particlesLD;
     }
     /**
-     * Get the indices of residues thermolized by NH
+     * Get the indices of molecules thermolized by NH
      * @return
      */
-    const std::vector<int> & getResiduesNH() const {
-        return residuesNH;
+    const std::vector<int> & getMoleculesNH() const {
+        return moleculesNH;
     }
     /**
      * Check if a particle thermolized by NH
@@ -382,26 +351,26 @@ public:
         return std::find(particlesImage.begin(), particlesImage.end(), i) != particlesImage.end();
     }
     /**
-     * Get the number of residues in the system
-     * @return the number of residues in the system
+     * Get the number of molecules in the system
+     * @return
      */
-    int getNumResidues() const {
-        return residueMasses.size();
+    int getNumMolecules() const {
+        return moleculeMasses.size();
     }
     /**
      * Get the inverse mass of a residue with residue index
      *
-     * @param resid                 the index of the residue for which to get parameters
-     * return resMass               the mass of the residue with index resid
+     * @param molid                 the index of the molecule for which to get parameters
+     * return resMass               the mass of the molecule with index molid
      */
-    double getResInvMass(int resid) const;
+    double getMoleculeInvMass(int molid) const;
     /**
-     * Get the residue id of a particle with particle index
+     * Get the molecule id of a particle with particle index
      *
      * @param particle              the index of the particle for which to get parameters
-     * return resid                 the index of the residue of the particle with index particle
+     * return molid                 the index of the molecule of the particle with index particle
      */
-    int getParticleResId(int particle) const;
+    int getParticleMolId(int particle) const;
     /**
      * Get the strength of cosine acceleration for viscosity calculation
      */
@@ -485,10 +454,10 @@ private:
     int loopsPerStep, numNHChains;
     bool useCOMTempGroup, autoSetCOMTempGroup;
     std::vector<int> particlesNH;
-    std::vector<int> residuesNH;
-    std::vector<int> particleResId;
-    std::vector<double> residueMasses;
-    std::vector<double> residueInvMasses;
+    std::vector<int> moleculesNH;
+    std::vector<int> particleMolId;
+    std::vector<double> moleculeMasses;
+    std::vector<double> moleculeInvMasses;
     Kernel vvKernel, nhKernel;
     bool forcesAreValid;
 

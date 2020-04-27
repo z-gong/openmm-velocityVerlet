@@ -107,9 +107,6 @@ integrator.setElectricField(1.0 * volt/nm)
 ```
 
 ## Known issues
-- The TGNH thermostat doesn't work correctly for atoms without bond or constraint.
-This is because the getMolecules() function simply ignores these atoms.
-This issue will get fixed soon.
 
 - The external electric field should be used with caution.
 One should apply the electric field to all particles or none of them of same molecules types.
