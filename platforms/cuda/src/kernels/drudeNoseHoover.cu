@@ -128,17 +128,14 @@ extern "C" __global__ void sumNormalizedKineticEnergies(double *__restrict__ kin
     extern __shared__ double temp[];
     unsigned int tid = threadIdx.x;
 
-    for (unsigned int i = 0; i < NUM_TG; i++)
-        temp[tid * NUM_TG + i] = 0;
-    __syncthreads();
-
     for (unsigned int i = 0; i < NUM_TG; i++) {
-        for (unsigned int index = tid * NUM_TG;
-             index + i < bufferSize; index += blockDim.x * NUM_TG) {
+        temp[tid * NUM_TG + i] = 0;
+        for (unsigned int index = tid * NUM_TG; index + i < bufferSize; index += blockDim.x * NUM_TG) {
             temp[tid * NUM_TG + i] += kineticEnergyBuffer[index + i];
         }
     }
     __syncthreads();
+
     for (unsigned int i = 0; i < NUM_TG; i++) {
         for (unsigned int k = blockDim.x / 2; k > 0; k >>= 1) {
             if (tid < k)

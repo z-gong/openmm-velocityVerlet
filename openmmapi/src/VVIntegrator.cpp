@@ -101,7 +101,7 @@ void VVIntegrator::initialize(ContextImpl& contextRef) {
                 throw OpenMMException("The System contains multiple DrudeForces");
         }
     }
-    if (force == NULL) {
+    if (force == NULL || force->getNumParticles() == 0) {
         if (autoSetCOMTempGroup)
             setUseCOMTempGroup(false);
         else if (useCOMTempGroup)
