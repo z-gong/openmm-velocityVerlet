@@ -389,8 +389,9 @@ public:
      * @param
      */
     void propagateNHChain(std::vector<double> &eta, std::vector<double> &eta_dot,
-                          std::vector<double> &eta_dotdot, std::vector<double> &eta_mass,
-                          double ke2, double ke2_target, double t_target, double &scale) const;
+                          std::vector<double> &eta_dotdot, const std::vector<double> &eta_mass,
+                          const double& ke2, const double& ke2_target, const double& t_target,
+                          double &scale) const;
     /**
      * Get the velocity at z=0 and reciprocal viscosity because of the cos acceleration
      * @param

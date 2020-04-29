@@ -511,12 +511,12 @@ void CudaModifyDrudeNoseKernel::scaleVelocity(ContextImpl& context, const VVInte
     cu.executeKernel(kernelKE, argsKE, particlesNHVec.size());
 
     // Use only one threadBlock for this kernel because we use shared memory
-    int blockSize = cu.ThreadBlockSize;
+    int workGroupSize = 512;
     void *argsKESum[] = {&kineticEnergyBufferNH->getDevicePointer(),
                          &kineticEnergiesNH->getDevicePointer(),
                          &bufferSize};
-    cu.executeKernel(kernelKESum, argsKESum, blockSize, blockSize,
-                     blockSize * numTempGroup * kineticEnergyBufferNH->getElementSize());
+    cu.executeKernel(kernelKESum, argsKESum, workGroupSize, workGroupSize,
+                     workGroupSize * numTempGroup * kineticEnergyBufferNH->getElementSize());
 
     kineticEnergiesNHVec = std::vector<double>(numTempGroup);
     kineticEnergiesNH->download(kineticEnergiesNHVec);
@@ -529,15 +529,13 @@ void CudaModifyDrudeNoseKernel::scaleVelocity(ContextImpl& context, const VVInte
 
 
     // Calculate scaling factor for velocities for each temperature group using Nose-Hoover chain
-    vscaleFactorsNHVec = std::vector<double>(numTempGroup);
+    vscaleFactorsNHVec = std::vector<double>(numTempGroup, 1.0);
     for (int itg = 0; itg < numTempGroup; itg++) {
-        double T = itg == TG_DRUDE ? integrator.getDrudeTemperature() : integrator.getTemperature();
-        double scale = 1;
+        const double T = itg == TG_DRUDE ? integrator.getDrudeTemperature() : integrator.getTemperature();
         if (etaMass[itg][0] > 0)
             integrator.propagateNHChain(eta[itg], etaDot[itg], etaDotDot[itg], etaMass[itg],
-                                        kineticEnergiesNHVec[itg], tempGroupNkbT[itg], T, scale);
-        vscaleFactorsNHVec[itg] = scale;
-        kineticEnergiesNHVec[itg] *= scale;
+                                        kineticEnergiesNHVec[itg], tempGroupNkbT[itg], T,
+                                        vscaleFactorsNHVec[itg]);
     }
 
 //    std::cout << cu.getStepCount() << " NH Velocity scaling factors: ";

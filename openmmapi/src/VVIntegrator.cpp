@@ -276,8 +276,8 @@ void VVIntegrator::step(int steps) {
 }
 
 void VVIntegrator::propagateNHChain(std::vector<double> &eta, std::vector<double> &eta_dot,
-                                    std::vector<double> &eta_dotdot, std::vector<double> &eta_mass,
-                                    double ke2, double ke2_target, double t_target,
+                                    std::vector<double> &eta_dotdot, const std::vector<double> &eta_mass,
+                                    const double& ke2, const double& ke2_target, const double& t_target,
                                     double &factor) const {
     double expfac;
     double dt2 = getStepSize() / loopsPerStep / 2;
