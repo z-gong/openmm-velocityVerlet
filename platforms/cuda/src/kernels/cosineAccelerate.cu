@@ -36,7 +36,7 @@ extern "C" __global__ void sumV(mixed *__restrict__ VBuffer,
      * The numThreads of this kernel equals to threadBlockSize.
      * So there is only one threadBlock for this kernel
      */
-    extern __shared__ double temp[];
+    extern __shared__ mixed temp[];
     unsigned int tid = threadIdx.x;
 
     temp[tid] = 0;

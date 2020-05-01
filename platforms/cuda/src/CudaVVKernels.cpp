@@ -865,11 +865,12 @@ void CudaModifyCosineAccelerateKernel::calcVelocityBias(ContextImpl& context, co
 
     int bufferSize = vMaxBuffer->getSize();
     // Use only one threadBlock for this kernel because we use shared memory
+    int workGroupSize = 512;
     void *args2[] = {&vMaxBuffer->getDevicePointer(),
                      &invMassTotal,
                      &bufferSize};
-    cu.executeKernel(kernelSumV, args2, cu.ThreadBlockSize, cu.ThreadBlockSize,
-                     cu.ThreadBlockSize * vMaxBuffer->getElementSize());
+    cu.executeKernel(kernelSumV, args2, workGroupSize, workGroupSize,
+                     workGroupSize * vMaxBuffer->getElementSize());
 }
 
 void CudaModifyCosineAccelerateKernel::removeVelocityBias(ContextImpl& context, const VVIntegrator& integrator) {
