@@ -100,7 +100,7 @@ void CudaIntegrateVVStepKernel::initialize(const System& system, const VVIntegra
     cout << "CUDA modules for velocity-Verlet integrator are created\n"
          << "    NUM_ATOMS: " << numAtoms << ", PADDED_NUM_ATOMS: " << cu.getPaddedNumAtoms() << "\n"
          << "    Num Drude pairs: " << drudePairsVec.size() << ", Drude hardwall distance: " << integrator.getMaxDrudeDistance() << " nm\n"
-         << "    Num thread blocks: " << cu.getNumThreadBlocks() << ", Thread block size: " << cu.ThreadBlockSize << "\n";
+         << "    Num thread blocks: " << cu.getNumThreadBlocks() << ", Thread block size: " << cu.ThreadBlockSize << "\n" << flush;
 
     prevStepSize = -1.0;
 }
@@ -476,6 +476,7 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
     for (int i = 0; i < numTempGroup; i++) {
         cout << "    DOF[" << i << "]: " << tempGroupDof[i] << ", NkbT[" << i << "]: " << tempGroupNkbT[i] << ", etaMass[" << i << "]: " << etaMass[i][0] << "\n";
     }
+    cout << flush;
 }
 
 
@@ -616,7 +617,7 @@ void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVInt
     cout << "CUDA modules for DrudeLangevinModifier are created\n"
          << "    Num normal particles: " << normalParticlesLDVec.size() << ", Num Drude pairs: " << pairParticlesLDVec.size() << "\n"
          << "    Real T: " << integrator.getTemperature() << " K, Drude T: " << integrator.getDrudeTemperature() << " K\n"
-         << "    Real friction: " << integrator.getFriction() << " /ps, Drude friction: " << integrator.getDrudeFriction() << " /ps\n";
+         << "    Real friction: " << integrator.getFriction() << " /ps, Drude friction: " << integrator.getDrudeFriction() << " /ps\n" << flush;
 }
 
 void CudaModifyDrudeLangevinKernel::applyLangevinForce(ContextImpl& context, const VVIntegrator& integrator) {
@@ -695,7 +696,7 @@ void CudaModifyImageChargeKernel::initialize(const System& system, const VVInteg
 
     cout << "CUDA modules for ImageChargeModifier are created\n"
          << "    Num image pairs: " << imagePairsVec.size() << "\n"
-         << "    Mirror location (z): " << integrator.getMirrorLocation() << " nm\n";
+         << "    Mirror location (z): " << integrator.getMirrorLocation() << " nm\n" << flush;
 }
 
 void CudaModifyImageChargeKernel::updateImagePositions(ContextImpl& context, const VVIntegrator& integrator) {
@@ -757,7 +758,7 @@ void CudaModifyElectricFieldKernel::initialize(const System &system, const VVInt
 
     cout << "CUDA modules for ElectricFieldModifier are created\n"
          << "    Num electrolyte particles: " << particlesElectrolyteVec.size() << "\n"
-         << "    Electric field strength (z): " << integrator.getElectricField() * 6.241509629152651e21 << " V/nm\n";
+         << "    Electric field strength (z): " << integrator.getElectricField() * 6.241509629152651e21 << " V/nm\n" << flush;
 }
 
 void CudaModifyElectricFieldKernel::applyElectricForce(ContextImpl& context, const VVIntegrator& integrator) {
@@ -823,7 +824,7 @@ void CudaModifyCosineAccelerateKernel::initialize(const System &system, const VV
     invMassTotal = 1.0 / massTotal;
 
     cout << "CUDA modules for CosineAccelerateModifier are created\n"
-         << "    Cosine acceleration strength: " << integrator.getCosAcceleration() << " nm/ps^2\n";
+         << "    Cosine acceleration strength: " << integrator.getCosAcceleration() << " nm/ps^2\n" << flush;
 }
 
 void CudaModifyCosineAccelerateKernel::applyCosineForce(ContextImpl& context, const VVIntegrator& integrator) {
