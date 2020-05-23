@@ -41,6 +41,7 @@ extern "C" OPENMM_EXPORT void registerKernelFactories() {
     try {
         Platform& platform = Platform::getPlatformByName("CUDA");
         CudaVVKernelFactory* factory = new CudaVVKernelFactory();
+        platform.registerKernelFactory(IntegrateMiddleStepKernel::Name(), factory);
         platform.registerKernelFactory(IntegrateVVStepKernel::Name(), factory);
         platform.registerKernelFactory(ModifyDrudeNoseKernel::Name(), factory);
         platform.registerKernelFactory(ModifyDrudeLangevinKernel::Name(), factory);
@@ -65,6 +66,8 @@ extern "C" OPENMM_EXPORT void registerCudaVVKernelFactories() {
 
 KernelImpl* CudaVVKernelFactory::createKernelImpl(std::string name, const Platform& platform, ContextImpl& context) const {
     CudaContext& cu = *static_cast<CudaPlatform::PlatformData*>(context.getPlatformData())->contexts[0];
+    if (name == IntegrateMiddleStepKernel::Name())
+        return new CudaIntegrateMiddleStepKernel(name, platform, cu);
     if (name == IntegrateVVStepKernel::Name())
         return new CudaIntegrateVVStepKernel(name, platform, cu);
     if (name == ModifyDrudeNoseKernel::Name())

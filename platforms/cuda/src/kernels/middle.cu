@@ -1,70 +1,102 @@
 
 /**
- * Perform the velocity update of half step velocity verlet.
+ * Full-step velocity update
  */
 
-extern "C" __global__ void velocityVerletIntegrateVelocities(mixed4 *__restrict__ velm,
-                                                             const long long *__restrict__ force,
-                                                             const real3 *__restrict__ forceExtra,
-                                                             mixed4 *__restrict__ posDelta,
-                                                             const mixed2 *__restrict__ dt,
-                                                             const mixed fscale,
-                                                             bool updatePosDelta) {
+extern "C" __global__ void integrateMiddleVel(mixed4 *__restrict__ velm,
+                                              const long long *__restrict__ force,
+                                              const real3 *__restrict__ forceExtra,
+                                              const mixed2 *__restrict__ dt) {
 
     mixed stepSize = dt[0].y;
+    mixed fscale = stepSize/(mixed) 0x100000000;
 
     for (int index = blockIdx.x * blockDim.x + threadIdx.x; index < NUM_ATOMS; index += blockDim.x * gridDim.x) {
         mixed4 velocity = velm[index];
-
         if (velocity.w != 0) {
-            velocity.x += 0.5 * stepSize * velocity.w * forceExtra[index].x + fscale * velocity.w * force[index];
-            velocity.y += 0.5 * stepSize * velocity.w * forceExtra[index].y + fscale * velocity.w * force[index + PADDED_NUM_ATOMS];
-            velocity.z += 0.5 * stepSize * velocity.w * forceExtra[index].z + fscale * velocity.w * force[index + PADDED_NUM_ATOMS * 2];
+            velocity.x += stepSize * velocity.w * forceExtra[index].x + fscale * velocity.w * force[index];
+            velocity.y += stepSize * velocity.w * forceExtra[index].y + fscale * velocity.w * force[index + PADDED_NUM_ATOMS];
+            velocity.z += stepSize * velocity.w * forceExtra[index].z + fscale * velocity.w * force[index + PADDED_NUM_ATOMS * 2];
             velm[index] = velocity;
-            if (updatePosDelta) {
-                posDelta[index] = make_mixed4(stepSize * velocity.x, stepSize * velocity.y, stepSize * velocity.z, 0);
-            }
         }
     }
 }
 
 /**
- * Perform the position update.
+ * First half-step position update
  */
 
-extern "C" __global__ void velocityVerletIntegratePositions(real4 *__restrict__ posq,
-                                                            real4 *__restrict__ posqCorrection,
-                                                            const mixed4 *__restrict__ posDelta,
-                                                            mixed4 *__restrict__ velm,
-                                                            const mixed2 *__restrict__ dt) {
-    mixed invStepSize = 1.0 / dt[0].y;
+extern "C" __global__ void integrateMiddlePos1(const mixed4 *__restrict__ velm,
+                                               mixed4 *__restrict__ posDelta,
+                                               mixed4 *__restrict__ oldDelta,
+                                               const mixed2 *__restrict__ dt) {
+    mixed halfdt = 0.5f * dt[0].y;
     for (int index = blockIdx.x * blockDim.x + threadIdx.x; index < NUM_ATOMS; index += blockDim.x * gridDim.x) {
-        mixed4 vel = velm[index];
-        if (vel.w != 0) {
-#ifdef USE_MIXED_PRECISION
+        mixed4 velocity = velm[index];
+        if (velocity.w != 0) {
+            mixed4 delta = make_mixed4(halfdt*velocity.x, halfdt*velocity.y, halfdt*velocity.z, 0);
+            posDelta[index] = delta;
+            oldDelta[index] = delta;
+        }
+    }
+}
+/**
+ * Second half-step position update
+ */
 
+extern "C" __global__ void integrateMiddlePos2(const mixed4 *__restrict__ velm,
+                                               mixed4 *__restrict__ posDelta,
+                                               mixed4 *__restrict__ oldDelta,
+                                               const mixed2 *__restrict__ dt) {
+    mixed halfdt = 0.5f * dt[0].y;
+    for (int index = blockIdx.x * blockDim.x + threadIdx.x; index < NUM_ATOMS; index += blockDim.x * gridDim.x) {
+        mixed4 velocity = velm[index];
+        if (velocity.w != 0) {
+            mixed4 delta = make_mixed4(halfdt*velocity.x, halfdt*velocity.y, halfdt*velocity.z, 0);
+            posDelta[index] += delta;
+            oldDelta[index] += delta;
+        }
+    }
+}
+
+/**
+ * Apply constraint forces to velocities, then record the constrained positions
+ */
+
+extern "C" __global__ void integrateMiddlePos3(real4 *__restrict__ posq,
+                                               real4 *__restrict__ posqCorrection,
+                                               const mixed4 *__restrict__ posDelta,
+                                               const mixed4 *__restrict__ oldDelta,
+                                               mixed4 *__restrict__ velm,
+                                               const mixed2 *__restrict__ dt) {
+    mixed invDt = 1 / dt[0].y;
+    for (int index = blockIdx.x * blockDim.x + threadIdx.x; index < NUM_ATOMS; index += blockDim.x * gridDim.x) {
+        mixed4 velocity = velm[index];
+        if (velocity.w != 0.0) {
+            mixed4 delta = posDelta[index];
+            velocity.x += (delta.x - oldDelta[index].x) * invDt;
+            velocity.y += (delta.y - oldDelta[index].y) * invDt;
+            velocity.z += (delta.z - oldDelta[index].z) * invDt;
+            velm[index] = velocity;
+#ifdef USE_MIXED_PRECISION
             real4 pos1 = posq[index];
             real4 pos2 = posqCorrection[index];
             mixed4 pos = make_mixed4(pos1.x+(mixed)pos2.x, pos1.y+(mixed)pos2.y, pos1.z+(mixed)pos2.z, pos1.w);
 #else
             real4 pos = posq[index];
 #endif
-            mixed4 delta = posDelta[index];
             pos.x += delta.x;
             pos.y += delta.y;
             pos.z += delta.z;
-            vel.x = (mixed) (invStepSize*delta.x);
-            vel.y = (mixed) (invStepSize*delta.y);
-            vel.z = (mixed) (invStepSize*delta.z);
 #ifdef USE_MIXED_PRECISION
             posq[index] = make_real4((real) pos.x, (real) pos.y, (real) pos.z, (real) pos.w);
             posqCorrection[index] = make_real4(pos.x-(real) pos.x, pos.y-(real) pos.y, pos.z-(real) pos.z, 0);
 #else
             posq[index] = pos;
 #endif
-            velm[index] = vel;
         }
     }
+
 }
 
 /**
@@ -76,8 +108,8 @@ extern "C" __global__ void applyHardWallConstraints(real4 *__restrict__ posq,
                                                     mixed4 *__restrict__ velm,
                                                     const int2 *__restrict__ drudePairs,
                                                     const mixed2 *__restrict__ dt,
-                                                    mixed maxDrudeDistance,
-                                                    mixed hardwallscaleDrude) {
+                                                    const mixed maxDrudeDistance,
+                                                    const mixed hardwallscaleDrude) {
 
     mixed stepSize = dt[0].y;
     for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_DRUDE_PAIRS; i += blockDim.x*gridDim.x) {

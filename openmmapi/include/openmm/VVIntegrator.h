@@ -40,10 +40,10 @@
 namespace OpenMM {
 
 /**
- * This Integrator simulates systems with velocity-Verlet algorithm. It works for both
- * non-polarizable model and Drude Model. Nose-Hoover thermostat and/or Langevin thermostat
- * can be applied for different parts of the system. For Drude model, the temperature-grouped
- * Nose-Hoover thermostat is supported.
+ * This Integrator simulates systems with velocity-Verlet algorithm.
+ * It works for both non-polarizable model and Drude polarizable model.
+ * Nose-Hoover thermostat and/or Langevin thermostat can be applied for different parts of the system.
+ * For Drude model, the temperature-grouped Nose-Hoover thermostat is supported.
  */
 
 class OPENMM_EXPORT_DRUDE VVIntegrator : public Integrator {
@@ -213,6 +213,7 @@ public:
      */
     void setFriction(double fric) {
         friction = fric;
+        autoSetFriction = false;
     }
     /**
      * Get the friction of Langevin thermostat for Drude particles (in /ps).
@@ -227,6 +228,7 @@ public:
      */
     void setDrudeFriction(double fric) {
         drudeFriction = fric;
+        autoSetFriction = false;
     }
     /**
      * Get the random number seed. See setRandomNumberSeed() for details.
@@ -415,6 +417,18 @@ public:
     void setDebugEnabled(bool enabled){
         debugEnabled = enabled;
     };
+    /**
+     * Get whether to use middle discretization scheme
+     */
+    const bool& getUseMiddleScheme() const{
+        return useMiddleScheme;
+    };
+    /**
+     * Set whether to use middle discretization scheme
+     */
+    void setUseMiddleScheme(bool use){
+        useMiddleScheme = use;
+    };
 protected:
     /**
      * This will be called by the Context when it is created.  It informs the Integrator
@@ -449,11 +463,23 @@ protected:
     bool kineticEnergyRequiresForce() const {
         return false;
     }
+    /**
+     * Advance a simulation through time by taking a series of time steps.
+     *
+     * @param steps   the number of time steps to take
+     */
+    void stepVV(int steps);
+    /**
+     * Advance a simulation through time by taking a series of time steps.
+     *
+     * @param steps   the number of time steps to take
+     */
+    void stepMiddle(int steps);
 private:
     bool debugEnabled;
     double temperature, frequency, drudeTemperature, drudeFrequency, maxDrudeDistance;
     int loopsPerStep, numNHChains;
-    bool useCOMTempGroup, autoSetCOMTempGroup;
+    bool useCOMTempGroup, autoSetCOMTempGroup, autoSetFriction, useMiddleScheme;
     std::vector<int> particlesNH;
     std::vector<int> moleculesNH;
     std::vector<int> particleMolId;

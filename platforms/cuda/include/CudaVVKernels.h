@@ -38,9 +38,68 @@
 
 namespace OpenMM {
 
+/**
+ * This kernel is invoked by VVIntegrator to take one time step with middle scheme
+ */
+    class CudaIntegrateMiddleStepKernel : public IntegrateMiddleStepKernel {
+    public:
+        CudaIntegrateMiddleStepKernel(std::string name, const Platform &platform, CudaContext &cu) :
+                IntegrateMiddleStepKernel(name, platform), cu(cu), forceExtra(NULL), drudePairs(NULL) {
+        }
+        ~CudaIntegrateMiddleStepKernel();
+        /**
+         * Initialize the kernel.
+         *
+         * @param system     the System this kernel will be applied to
+         * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
+         * @param force      the DrudeForce to get particle parameters from
+         */
+        void initialize(const System& system, const VVIntegrator& integrator, const DrudeForce* force);
+        /**
+         * Perform first-half velocity-verlet integration
+         *
+         * @param context        the context in which to execute this kernel
+         * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
+         */
+        void firstIntegrate(ContextImpl& context, const VVIntegrator& integrator);
+        /**
+         * Reset the extra forces to zero so that we can calculate langein force, external electric force etc
+         * @param context
+         * @param integrator
+         */
+        void resetExtraForce(ContextImpl& context, const VVIntegrator& integrator);
+        /**
+         * Perform the second-half velocity-verlet integration
+         *
+         * @param context        the context in which to execute this kernel
+         * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
+         */
+        void secondIntegrate(ContextImpl& context, const VVIntegrator& integrator);
+        /**
+         * Compute the kinetic energy.
+         *
+         * @param context       the context in which to execute this kernel
+         * @param integrator    the DrudeNoseHooverIntegrator this kernel is being used for
+         */
+        double computeKineticEnergy(ContextImpl& context, const VVIntegrator& integrator);
+
+        CudaArray* getForceExtra(){
+            return forceExtra;
+        }
+    private:
+        CudaContext& cu;
+        double prevStepSize;
+        int numAtoms;
+        std::vector<int2> drudePairsVec;
+        CudaArray *forceExtra;
+        CudaArray *oldDelta;
+        CudaArray *drudePairs;
+        CUfunction kernelVel, kernelPos1, kernelPos2, kernelPos3, kernelDrudeHardwall, kernelResetExtraForce;
+    };
+
 
 /**
- * This kernel is invoked by DrudeNoseHooverIntegrator to take one time step
+ * This kernel is invoked by VVIntegrator to take one time step
  */
 class CudaIntegrateVVStepKernel : public IntegrateVVStepKernel {
 public:
@@ -62,7 +121,7 @@ public:
      * @param context        the context in which to execute this kernel
      * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
      */
-    void firstIntegrate(ContextImpl& context, const VVIntegrator& integrator, bool& forcesAreValid);
+    void firstIntegrate(ContextImpl& context, const VVIntegrator& integrator);
     /**
      * Reset the extra forces to zero so that we can calculate langein force, external electric force etc
      * @param context
@@ -75,7 +134,7 @@ public:
      * @param context        the context in which to execute this kernel
      * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
      */
-    void secondIntegrate(ContextImpl& context, const VVIntegrator& integrator, bool& forcesAreValid);
+    void secondIntegrate(ContextImpl& context, const VVIntegrator& integrator);
     /**
      * Compute the kinetic energy.
      *
@@ -186,7 +245,7 @@ private:
         void applyLangevinForce(ContextImpl &context, const VVIntegrator &integrator);
 
     private:
-        CudaIntegrateVVStepKernel* vvStepKernel;
+        CudaArray* forceExtra;
         CudaContext &cu;
         std::vector<int> normalParticlesLDVec;
         std::vector<int2> pairParticlesLDVec;
@@ -256,7 +315,7 @@ private:
         void applyElectricForce(ContextImpl& context, const VVIntegrator& integrator);
 
     private:
-        CudaIntegrateVVStepKernel* vvStepKernel;
+        CudaArray* forceExtra;
         CudaContext &cu;
         CudaArray *particlesElectrolyte;
         CUfunction kernelApplyElectricForce;
@@ -312,7 +371,7 @@ private:
          */
         void calcViscosity(ContextImpl& context, const VVIntegrator& integrator, double& vMax, double& invVis);
     private:
-        CudaIntegrateVVStepKernel* vvStepKernel;
+        CudaArray* forceExtra;
         CudaContext& cu;
         int numAtoms;
         double invMassTotal;

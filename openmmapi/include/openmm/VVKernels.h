@@ -43,7 +43,51 @@
 namespace OpenMM {
 
 /**
- * This kernel is invoked by DrudeNoseHooverIntegrator to take one time step.
+ * This kernel is invoked by VVIntegrator to take one time step with middle scheme
+ */
+    class IntegrateMiddleStepKernel : public KernelImpl {
+    public:
+        static std::string Name() {
+            return "IntegrateMiddleStep";
+        }
+        IntegrateMiddleStepKernel(std::string name, const Platform& platform) : KernelImpl(name, platform) {
+        }
+        /**
+         * Initialize the kernel.
+         *
+         * @param system     the System this kernel will be applied to
+         * @param integrator the DrudeNoseHooverIntegrator this kernel will be used for
+         * @param force      the DrudeForce to get particle parameters from
+         */
+        virtual void initialize(const System& system, const VVIntegrator& integrator, const DrudeForce* force) = 0;
+        /**
+         * Execute the kernel.
+         *
+         * @param context        the context in which to execute this kernel
+         * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
+         */
+        virtual void firstIntegrate(ContextImpl& context, const VVIntegrator& integrator) = 0;
+        /**
+         * Reset the extra forces to zero so that we can calculate langein force, external electric force etc
+         * @param context
+         * @param integrator
+         */
+        virtual void resetExtraForce(ContextImpl& context, const VVIntegrator& integrator) = 0;
+        /**
+         * Execute the kernel.
+         *
+         * @param context        the context in which to execute this kernel
+         * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
+         */
+        virtual void secondIntegrate(ContextImpl& context, const VVIntegrator& integrator) = 0;
+        /**
+         * Compute the kinetic energy.
+         */
+        virtual double computeKineticEnergy(ContextImpl& context, const VVIntegrator& integrator) = 0;
+    };
+
+/**
+ * This kernel is invoked by VVIntegrator to take one time step
  */
 class IntegrateVVStepKernel : public KernelImpl {
 public:
@@ -66,7 +110,7 @@ public:
      * @param context        the context in which to execute this kernel
      * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
      */
-    virtual void firstIntegrate(ContextImpl& context, const VVIntegrator& integrator, bool& forcesAreValid) = 0;
+    virtual void firstIntegrate(ContextImpl& context, const VVIntegrator& integrator) = 0;
     /**
      * Reset the extra forces to zero so that we can calculate langein force, external electric force etc
      * @param context
@@ -79,7 +123,7 @@ public:
      * @param context        the context in which to execute this kernel
      * @param integrator     the DrudeNoseHooverIntegrator this kernel is being used for
      */
-    virtual void secondIntegrate(ContextImpl& context, const VVIntegrator& integrator, bool& forcesAreValid) = 0;
+    virtual void secondIntegrate(ContextImpl& context, const VVIntegrator& integrator) = 0;
     /**
      * Compute the kinetic energy.
      */

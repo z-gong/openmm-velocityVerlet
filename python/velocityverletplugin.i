@@ -100,7 +100,9 @@ public:
    int getLoopsPerStep() const ;
    void setLoopsPerStep(int loops) ;
    bool getUseCOMTempGroup() const ;
-   void setUseCOMTempGroup(int useCOMTempGroup) ;
+   void setUseCOMTempGroup(bool) ;
+   bool getUseMiddleScheme() const ;
+   void setUseMiddleScheme(bool) ;
 
    int addParticleLangevin(int particle) ;
    int getRandomNumberSeed() const ;

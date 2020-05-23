@@ -45,8 +45,7 @@ using std::vector;
 
 VVIntegrator::VVIntegrator(double temperature, double frequency, double drudeTemperature,
                            double drudeFrequency, double stepSize,
-                           int numNHChains, int loopsPerStep)
-        : forcesAreValid(false) {
+                           int numNHChains, int loopsPerStep) {
     setTemperature(temperature);
     setFrequency(frequency);
     setDrudeTemperature(drudeTemperature);
@@ -54,7 +53,6 @@ VVIntegrator::VVIntegrator(double temperature, double frequency, double drudeTem
     setStepSize(stepSize);
     setNumNHChains(numNHChains);
     setLoopsPerStep(loopsPerStep);
-    setUseCOMTempGroup(useCOMTempGroup);
     setConstraintTolerance(1e-5);
     setMaxDrudeDistance(0);
     setFriction(5.0);
@@ -63,8 +61,12 @@ VVIntegrator::VVIntegrator(double temperature, double frequency, double drudeTem
     setMirrorLocation(0.0);
     setElectricField(0.0);
     setCosAcceleration(0.0);
+    setUseCOMTempGroup(false);
+    setUseMiddleScheme(false);
     setDebugEnabled(false);
     autoSetCOMTempGroup = true;
+    autoSetFriction = true;
+    forcesAreValid = false;
 }
 
 VVIntegrator::~VVIntegrator() {
@@ -106,11 +108,16 @@ void VVIntegrator::initialize(ContextImpl& contextRef) {
             setUseCOMTempGroup(false);
         else if (useCOMTempGroup)
             printf("WARNING: You are using COM temperature group for non-Drude model\n");
+        if (autoSetFriction)
+            setFriction(1.0);
     } else {
         if (autoSetCOMTempGroup)
             setUseCOMTempGroup(true);
         else if (!useCOMTempGroup)
             printf("WARNING: You are not using COM temperature group for Drude model\n");
+        if (autoSetFriction){
+            setFriction(5.0);
+        }
     }
 
     particleMolId = std::vector<int>(system.getNumParticles(), -1);
@@ -149,8 +156,15 @@ void VVIntegrator::initialize(ContextImpl& contextRef) {
 
     context = &contextRef;
     owner = &contextRef.getOwner();
-    vvKernel = context->getPlatform().createKernel(IntegrateVVStepKernel::Name(), contextRef);
-    vvKernel.getAs<IntegrateVVStepKernel>().initialize(contextRef.getSystem(), *this, force);
+
+    if (useMiddleScheme){
+        vvKernel = context->getPlatform().createKernel(IntegrateMiddleStepKernel::Name(), contextRef);
+        vvKernel.getAs<IntegrateMiddleStepKernel>().initialize(contextRef.getSystem(), *this, force);
+    }
+    else{
+        vvKernel = context->getPlatform().createKernel(IntegrateVVStepKernel::Name(), contextRef);
+        vvKernel.getAs<IntegrateVVStepKernel>().initialize(contextRef.getSystem(), *this, force);
+    }
     if (!particlesNH.empty()) {
         nhKernel = context->getPlatform().createKernel(ModifyDrudeNoseKernel::Name(), contextRef);
         nhKernel.getAs<ModifyDrudeNoseKernel>().initialize(contextRef.getSystem(), *this, force);
@@ -185,6 +199,7 @@ void VVIntegrator::cleanup() {
 vector<string> VVIntegrator::getKernelNames() {
     std::vector<std::string> names;
     names.push_back(IntegrateVVStepKernel::Name());
+    names.push_back(IntegrateMiddleStepKernel::Name());
     names.push_back(ModifyDrudeNoseKernel::Name());
     names.push_back(ModifyDrudeLangevinKernel::Name());
     names.push_back(ModifyImageChargeKernel::Name());
@@ -199,15 +214,65 @@ double VVIntegrator::computeKineticEnergy() {
      * So I must mark the force as invalid
      */
     forcesAreValid = false;
-    return vvKernel.getAs<IntegrateVVStepKernel>().computeKineticEnergy(*context, *this);
+    if (useMiddleScheme)
+        return vvKernel.getAs<IntegrateMiddleStepKernel>().computeKineticEnergy(*context, *this);
+    else
+        return vvKernel.getAs<IntegrateVVStepKernel>().computeKineticEnergy(*context, *this);
 }
 
 void VVIntegrator::step(int steps) {
     if (context == NULL)
         throw OpenMMException("This Integrator is not bound to a context!");
+    if (useMiddleScheme)
+        stepMiddle(steps);
+    else
+        stepVV(steps);
+}
+
+void VVIntegrator::stepMiddle(int steps) {
+    for (int i = 0; i < steps; ++i) {
+        context->updateContextState();
+        context->calcForcesAndEnergy(true, false);
+
+        // Calculate extra forces because of Langevin thermostat, electrical field, cosine acceleration
+        if (!particlesLD.empty() || !particlesElectrolyte.empty() || cosAcceleration !=0)
+            vvKernel.getAs<IntegrateMiddleStepKernel>().resetExtraForce(*context, *this);
+        if (!particlesLD.empty())
+            ldKernel.getAs<ModifyDrudeLangevinKernel>().applyLangevinForce(*context, *this);
+        if (!particlesElectrolyte.empty())
+            efKernel.getAs<ModifyElectricFieldKernel>().applyElectricForce(*context, *this);
+        if (cosAcceleration != 0)
+            ppKernel.getAs<ModifyCosineAccelerateKernel>().applyCosineForce(*context, *this);
+
+        // First half LFMiddle integrate (full-step velocity and half-step position update)
+        vvKernel.getAs<IntegrateMiddleStepKernel>().firstIntegrate(*context, *this);
+
+        // NH thermostat
+        if (!particlesNH.empty()){
+            if (cosAcceleration != 0){
+                ppKernel.getAs<ModifyCosineAccelerateKernel>().calcVelocityBias(*context, *this);
+                ppKernel.getAs<ModifyCosineAccelerateKernel>().removeVelocityBias(*context, *this);
+            }
+            nhKernel.getAs<ModifyDrudeNoseKernel>().scaleVelocity(*context, *this);
+            if (cosAcceleration != 0){
+                ppKernel.getAs<ModifyCosineAccelerateKernel>().restoreVelocityBias(*context, *this);
+            }
+        }
+
+        // Second half LFMiddle integrate (second-half position update)
+        vvKernel.getAs<IntegrateMiddleStepKernel>().secondIntegrate(*context, *this);
+
+        // update the position of image particles
+        if (!particlesImage.empty()){
+            imgKernel.getAs<ModifyImageChargeKernel>().updateImagePositions(*context, *this);
+        }
+    }
+}
+
+void VVIntegrator::stepVV(int steps) {
     for (int i = 0; i < steps; ++i) {
 
-        /** TODO gongzheng @ 2020-02-21
+        /** @ 2020-02-21
          * The friction and random forces from Langevin thermostat
          * are calculated and stored separately from the normal FF Forces
          * So when the FF Forces are invalidated
@@ -217,9 +282,6 @@ void VVIntegrator::step(int steps) {
          * After the first half velocity-verlet update
          * the FF forces are calculated from full-step position
          * and Langevin forces are calculated from half-step velocity
-         *
-         * Probably it's cleaner to implement Langevin thermostat as a Force object
-         * then the Langevin force are calculated from full-step velocity
          */
         if (context->updateContextState())
             forcesAreValid = false;
@@ -240,7 +302,7 @@ void VVIntegrator::step(int steps) {
                 ppKernel.getAs<ModifyCosineAccelerateKernel>().restoreVelocityBias(*context, *this);
             }
         }
-        vvKernel.getAs<IntegrateVVStepKernel>().firstIntegrate(*context, *this, forcesAreValid);
+        vvKernel.getAs<IntegrateVVStepKernel>().firstIntegrate(*context, *this);
 
         // update the position of image particles
         if (!particlesImage.empty()){
@@ -261,7 +323,7 @@ void VVIntegrator::step(int steps) {
             ppKernel.getAs<ModifyCosineAccelerateKernel>().applyCosineForce(*context, *this);
 
         // Second half velocity verlet integrate (full-step velocity update)
-        vvKernel.getAs<IntegrateVVStepKernel>().secondIntegrate(*context, *this, forcesAreValid);
+        vvKernel.getAs<IntegrateVVStepKernel>().secondIntegrate(*context, *this);
         if (!particlesNH.empty()) {
             if (cosAcceleration != 0){
                 ppKernel.getAs<ModifyCosineAccelerateKernel>().calcVelocityBias(*context, *this);

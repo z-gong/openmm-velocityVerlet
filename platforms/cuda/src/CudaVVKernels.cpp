@@ -47,6 +47,191 @@ using namespace std;
 
 enum{TG_ATOM, TG_COM, TG_DRUDE, NUM_TG_MAX};
 
+CudaIntegrateMiddleStepKernel::~CudaIntegrateMiddleStepKernel() {
+    delete forceExtra;
+    delete drudePairs;
+}
+
+void CudaIntegrateMiddleStepKernel::initialize(const System& system, const VVIntegrator& integrator, const DrudeForce* force) {
+    if (integrator.getDebugEnabled())
+        cout << "Initializing CudaVVIntegrator-Middle...\n" << flush;
+
+    cu.getPlatformData().initializeContexts(system);
+    CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
+    integration.initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
+
+    numAtoms = cu.getNumAtoms();
+
+    if (force != NULL) {
+        for (int i = 0; i < force->getNumParticles(); i++) {
+            int p, p1, p2, p3, p4;
+            double charge, polarizability, aniso12, aniso34;
+            force->getParticleParameters(i, p, p1, p2, p3, p4, charge, polarizability, aniso12, aniso34);
+            drudePairsVec.push_back(make_int2(p, p1));
+        }
+    }
+    drudePairs = CudaArray::create<int2>(cu, max((int) drudePairsVec.size(), 1), "vvDrudePairs");
+    if (!drudePairsVec.empty())
+        drudePairs->upload(drudePairsVec);
+
+    // init forceExtra with zero in case no extra force modifier is applied
+    if (cu.getUseDoublePrecision()) {
+        forceExtra = CudaArray::create<double3>(cu, numAtoms, "forceExtra");
+        auto forceExtraVec = std::vector<double3>(numAtoms, make_double3(0, 0, 0));
+        forceExtra->upload(forceExtraVec);
+    }
+    else {
+        forceExtra = CudaArray::create<float3>(cu, numAtoms, "forceExtra");
+        auto forceExtraVec = std::vector<float3>(numAtoms, make_float3(0, 0, 0));
+        forceExtra->upload(forceExtraVec);
+    }
+    // init oldDelta
+    if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision()) {
+        oldDelta = CudaArray::create<double4>(cu, numAtoms, "oldDelta");
+    }
+    else {
+        oldDelta = CudaArray::create<float4>(cu, numAtoms, "oldDelta");
+    }
+
+    map<string, string> defines;
+    defines["NUM_ATOMS"] = cu.intToString(numAtoms);
+    defines["PADDED_NUM_ATOMS"] = cu.intToString(cu.getPaddedNumAtoms());
+    defines["NUM_DRUDE_PAIRS"] = cu.intToString(drudePairsVec.size());
+    CUmodule module = cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::middle, defines, "");
+    kernelVel = cu.getKernel(module, "integrateMiddleVel");
+    kernelPos1 = cu.getKernel(module, "integrateMiddlePos1");
+    kernelPos2 = cu.getKernel(module, "integrateMiddlePos2");
+    kernelPos3 = cu.getKernel(module, "integrateMiddlePos3");
+    kernelResetExtraForce = cu.getKernel(module, "resetExtraForce");
+    if (force != NULL and integrator.getMaxDrudeDistance() > 0)
+        kernelDrudeHardwall = cu.getKernel(module, "applyHardWallConstraints");
+
+    cout << "CUDA modules for velocityVerlet-middle integrator are created\n"
+         << "    NUM_ATOMS: " << numAtoms << ", PADDED_NUM_ATOMS: " << cu.getPaddedNumAtoms() << "\n"
+         << "    Num Drude pairs: " << drudePairsVec.size() << ", Drude hardwall distance: " << integrator.getMaxDrudeDistance() << " nm\n"
+         << "    Num thread blocks: " << cu.getNumThreadBlocks() << ", Thread block size: " << cu.ThreadBlockSize << "\n" << flush;
+
+    prevStepSize = -1.0;
+}
+
+void CudaIntegrateMiddleStepKernel::resetExtraForce(ContextImpl& context, const VVIntegrator& integrator) {
+    if (integrator.getDebugEnabled())
+        cout << "VVIntegrator-Middle reset extra force\n" << flush;
+
+    cu.setAsCurrent();
+
+    void *args1[] = {&forceExtra->getDevicePointer()};
+    cu.executeKernel(kernelResetExtraForce, args1, numAtoms);
+}
+
+void CudaIntegrateMiddleStepKernel::firstIntegrate(ContextImpl& context, const VVIntegrator& integrator) {
+    if (integrator.getDebugEnabled())
+        cout << "VVIntegrator-Middle first-half integration\n" << flush;
+
+    cu.setAsCurrent();
+    CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
+
+    // Compute integrator coefficients.
+    double stepSize = integrator.getStepSize();
+    if (stepSize != prevStepSize) {
+        integration.setNextStepSize(stepSize);
+        prevStepSize = stepSize;
+    }
+
+    // Full-step velocity update
+    void *argsVel[] = {&cu.getVelm().getDevicePointer(),
+                       &cu.getForce().getDevicePointer(),
+                       &forceExtra->getDevicePointer(),
+                       &integration.getStepSize().getDevicePointer()};
+    cu.executeKernel(kernelVel, argsVel, numAtoms);
+
+    // Apply velocity constraints
+    integration.applyVelocityConstraints(integrator.getConstraintTolerance());
+
+    // Half-step position update
+    void *argsPos1[] = {&cu.getVelm().getDevicePointer(),
+                        &integration.getPosDelta().getDevicePointer(),
+                        &oldDelta->getDevicePointer(),
+                        &integration.getStepSize().getDevicePointer()};
+    cu.executeKernel(kernelPos1, argsPos1, numAtoms);
+}
+
+void CudaIntegrateMiddleStepKernel::secondIntegrate(ContextImpl &context, const VVIntegrator &integrator) {
+    if (integrator.getDebugEnabled())
+        cout << "MiddleIntegrator second-half integration\n" << flush;
+
+    cu.setAsCurrent();
+    CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
+
+    // Second half-step position update
+    void *argsPos2[] = {&cu.getVelm().getDevicePointer(),
+                        &integration.getPosDelta().getDevicePointer(),
+                        &oldDelta->getDevicePointer(),
+                        &integration.getStepSize().getDevicePointer()};
+    cu.executeKernel(kernelPos2, argsPos2, numAtoms);
+
+    // Apply position constraints
+    integration.applyConstraints(integrator.getConstraintTolerance());
+
+    // Adjust position and velocity after constraint
+    void *argsPos3[] = {&cu.getPosq().getDevicePointer(),
+                        &cu.getPosqCorrection().getDevicePointer(),
+                        &integration.getPosDelta().getDevicePointer(),
+                        &oldDelta->getDevicePointer(),
+                        &cu.getVelm().getDevicePointer(),
+                        &integration.getStepSize().getDevicePointer()};
+    cu.executeKernel(kernelPos3, argsPos3, numAtoms);
+
+    // Create appropriate pointer for the precision mode.
+
+    double maxDrudeDistance = integrator.getMaxDrudeDistance();
+    double hardwallScaleDrude = sqrt(BOLTZ * integrator.getDrudeTemperature());
+    float maxDrudeDistanceFloat =(float) maxDrudeDistance;
+    float hardwallScaleDrudeFloat = (float) hardwallScaleDrude;
+    void *maxDrudeDistancePtr, *hardwallScaleDrudePtr;
+    if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision()) {
+        maxDrudeDistancePtr = &maxDrudeDistance;
+        hardwallScaleDrudePtr = &hardwallScaleDrude;
+    } else {
+        maxDrudeDistancePtr = &maxDrudeDistanceFloat;
+        hardwallScaleDrudePtr = &hardwallScaleDrudeFloat;
+    }
+
+    // Apply hard wall constraints.
+    if (maxDrudeDistance > 0 and !drudePairsVec.empty()) {
+        void *hardwallArgs[] = {&cu.getPosq().getDevicePointer(),
+                                &cu.getPosqCorrection().getDevicePointer(),
+                                &cu.getVelm().getDevicePointer(),
+                                &drudePairs->getDevicePointer(),
+                                &integration.getStepSize().getDevicePointer(),
+                                maxDrudeDistancePtr,
+                                hardwallScaleDrudePtr};
+        cu.executeKernel(kernelDrudeHardwall, hardwallArgs, drudePairs->getSize());
+    }
+
+    integration.computeVirtualSites();
+
+    cu.reorderAtoms();
+
+    // Update the time and step count.
+    cu.setTime(cu.getTime() + integrator.getStepSize());
+    cu.setStepCount(cu.getStepCount() + 1);
+
+//    // check temperature
+//    if (cu.getStepCount() % 1 == 0) {
+//        std::cout << "Step " << cu.getStepCount() << " Temperature: ";
+//        for (int i = 0; i < integrator.getNumTempGroups() + 2; i++) {
+//            double T = kineticEnergiesVec[i] / tempGroupDof[i] / BOLTZ;
+//            std::cout << T << " ";
+//        }
+//        std::cout << "\n";
+//    }
+}
+
+double CudaIntegrateMiddleStepKernel::computeKineticEnergy(ContextImpl& context, const VVIntegrator& integrator) {
+    return cu.getIntegrationUtilities().computeKineticEnergy(0);
+}
+
 CudaIntegrateVVStepKernel::~CudaIntegrateVVStepKernel() {
     delete forceExtra;
     delete drudePairs;
@@ -58,7 +243,7 @@ void CudaIntegrateVVStepKernel::initialize(const System& system, const VVIntegra
 
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
-    cu.getIntegrationUtilities().initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
+    integration.initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
 
     numAtoms = cu.getNumAtoms();
 
@@ -105,7 +290,7 @@ void CudaIntegrateVVStepKernel::initialize(const System& system, const VVIntegra
     prevStepSize = -1.0;
 }
 
-void CudaIntegrateVVStepKernel::firstIntegrate(ContextImpl& context, const VVIntegrator& integrator, bool& forcesAreValid) {
+void CudaIntegrateVVStepKernel::firstIntegrate(ContextImpl& context, const VVIntegrator& integrator) {
     if (integrator.getDebugEnabled())
         cout << "VVIntegrator first-half integration\n" << flush;
 
@@ -191,9 +376,6 @@ void CudaIntegrateVVStepKernel::firstIntegrate(ContextImpl& context, const VVInt
      */
 
     cu.reorderAtoms();
-    if (cu.getAtomsWereReordered()) {
-        forcesAreValid = false;
-    }
 }
 
 void CudaIntegrateVVStepKernel::resetExtraForce(ContextImpl& context, const VVIntegrator& integrator) {
@@ -207,7 +389,7 @@ void CudaIntegrateVVStepKernel::resetExtraForce(ContextImpl& context, const VVIn
     cu.executeKernel(kernelResetExtraForce, args1, numAtoms);
 }
 
-void CudaIntegrateVVStepKernel::secondIntegrate(ContextImpl &context, const VVIntegrator &integrator, bool &forcesAreValid) {
+void CudaIntegrateVVStepKernel::secondIntegrate(ContextImpl &context, const VVIntegrator &integrator) {
     if (integrator.getDebugEnabled())
         cout << "VVIntegrator second-half integration\n" << flush;
 
@@ -278,7 +460,6 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
     if (integrator.getDebugEnabled())
         cout << "Initializing CudaModifyDrudeNoseKernel...\n" << flush;
 
-    cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 
     numAtoms = cu.getNumAtoms();
@@ -564,8 +745,14 @@ void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVInt
     if (integrator.getDebugEnabled())
         cout << "Initializing CudaModifyDrudeLangevinKernel...\n" << flush;
 
-    vvStepKernel = &vvKernel.getAs<CudaIntegrateVVStepKernel>();
-    cu.getPlatformData().initializeContexts(system);
+    if (integrator.getUseMiddleScheme()){
+        CudaIntegrateMiddleStepKernel* stepKernel = &vvKernel.getAs<CudaIntegrateMiddleStepKernel>();
+        forceExtra = stepKernel->getForceExtra();
+    }
+    else{
+        CudaIntegrateVVStepKernel* stepKernel = &vvKernel.getAs<CudaIntegrateVVStepKernel>();
+        forceExtra = stepKernel->getForceExtra();
+    }
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
     cu.getIntegrationUtilities().initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
 
@@ -659,7 +846,7 @@ void CudaModifyDrudeLangevinKernel::applyLangevinForce(ContextImpl& context, con
 
     int randomIndex = integration.prepareRandomNumbers(normalParticlesLD->getSize() + 2 * pairParticlesLD->getSize());
     void *args1[] = {&cu.getVelm().getDevicePointer(),
-                     &vvStepKernel->getForceExtra()->getDevicePointer(),
+                     &forceExtra->getDevicePointer(),
                      &normalParticlesLD->getDevicePointer(),
                      &pairParticlesLD->getDevicePointer(),
                      dragPtr, randPtr, dragDrudePtr, randDrudePtr,
@@ -675,8 +862,6 @@ CudaModifyImageChargeKernel::~CudaModifyImageChargeKernel() {
 void CudaModifyImageChargeKernel::initialize(const System& system, const VVIntegrator& integrator) {
     if (integrator.getDebugEnabled())
         cout << "Initializing CudaModifyImageChargeKernel...\n" << flush;
-
-    cu.getPlatformData().initializeContexts(system);
 
     // Identify particle pairs and ordinary particles.
 
@@ -739,8 +924,14 @@ void CudaModifyElectricFieldKernel::initialize(const System &system, const VVInt
     if (integrator.getDebugEnabled())
         cout << "Initializing CudaModifyElectricFieldKernel...\n" << flush;
 
-    vvStepKernel = &vvKernel.getAs<CudaIntegrateVVStepKernel>();
-    cu.getPlatformData().initializeContexts(system);
+    if (integrator.getUseMiddleScheme()){
+        CudaIntegrateMiddleStepKernel* stepKernel = &vvKernel.getAs<CudaIntegrateMiddleStepKernel>();
+        forceExtra = stepKernel->getForceExtra();
+    }
+    else{
+        CudaIntegrateVVStepKernel* stepKernel = &vvKernel.getAs<CudaIntegrateVVStepKernel>();
+        forceExtra = stepKernel->getForceExtra();
+    }
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
     cu.getIntegrationUtilities().initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
 
@@ -782,7 +973,7 @@ void CudaModifyElectricFieldKernel::applyElectricForce(ContextImpl& context, con
     }
 
     void *args1[] = {&cu.getPosq().getDevicePointer(),
-                     &vvStepKernel->getForceExtra()->getDevicePointer(),
+                     &forceExtra->getDevicePointer(),
                      &particlesElectrolyte->getDevicePointer(),
                      efieldPtr,
                      fscalePtr};
@@ -797,8 +988,14 @@ void CudaModifyCosineAccelerateKernel::initialize(const System &system, const VV
     if (integrator.getDebugEnabled())
         cout << "Initializing CosineAccelerateModifier...\n" << flush;
 
-    vvStepKernel = &vvKernel.getAs<CudaIntegrateVVStepKernel>();
-    cu.getPlatformData().initializeContexts(system);
+    if (integrator.getUseMiddleScheme()){
+        CudaIntegrateMiddleStepKernel* stepKernel = &vvKernel.getAs<CudaIntegrateMiddleStepKernel>();
+        forceExtra = stepKernel->getForceExtra();
+    }
+    else{
+        CudaIntegrateVVStepKernel* stepKernel = &vvKernel.getAs<CudaIntegrateVVStepKernel>();
+        forceExtra = stepKernel->getForceExtra();
+    }
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
     cu.getIntegrationUtilities().initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
 
@@ -845,7 +1042,7 @@ void CudaModifyCosineAccelerateKernel::applyCosineForce(ContextImpl& context, co
 
     void *args1[] = {&cu.getPosq().getDevicePointer(),
                      &cu.getVelm().getDevicePointer(),
-                     &vvStepKernel->getForceExtra()->getDevicePointer(),
+                     &forceExtra->getDevicePointer(),
                      accelerationPtr,
                      cu.getInvPeriodicBoxSizePointer()};
     cu.executeKernel(kernelAccelerate, args1, numAtoms);
