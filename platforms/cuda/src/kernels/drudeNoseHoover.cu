@@ -56,7 +56,7 @@ extern "C" __global__ void computeNormalizedKineticEnergies(const mixed4 *__rest
                                                             const mixed4 *__restrict__ comVelm,
                                                             const int *__restrict__ normalParticles,
                                                             const int2 *__restrict__ pairParticles,
-                                                            double *__restrict__ kineticEnergyBuffer,
+                                                            mixed *__restrict__ kineticEnergyBuffer,
                                                             const int *__restrict__ moleculesNH,
                                                             int bufferSize) {
     /**
@@ -118,14 +118,14 @@ extern "C" __global__ void computeNormalizedKineticEnergies(const mixed4 *__rest
  * Sum up the kinetic energies of each degree of freedom.
  */
 
-extern "C" __global__ void sumNormalizedKineticEnergies(double *__restrict__ kineticEnergyBuffer,
-                                                        double *__restrict__ kineticEnergies,
+extern "C" __global__ void sumNormalizedKineticEnergies(mixed *__restrict__ kineticEnergyBuffer,
+                                                        mixed *__restrict__ kineticEnergies,
                                                         int bufferSize) {
     /**
      * The numThreads of this kernel equals to threadBlockSize.
      * So there is only one threadBlock for this kernel
      */
-    extern __shared__ double temp[];
+    extern __shared__ mixed temp[];
     unsigned int tid = threadIdx.x;
 
     for (unsigned int i = 0; i < NUM_TG; i++) {
@@ -159,11 +159,11 @@ extern "C" __global__ void scaleVelocity(mixed4 *__restrict__ velm,
                                          const int *__restrict__ particleMolId,
                                          const int *__restrict__ normalParticles,
                                          const int2 *__restrict__ pairParticles,
-                                         const double *__restrict__ vscaleFactors) {
+                                         const mixed *__restrict__ vscaleFactors) {
 
-    double vscaleAtom = vscaleFactors[0];
-    double vscaleCOM = vscaleFactors[1];
-    double vscaleDrude = vscaleFactors[2];
+    mixed vscaleAtom = vscaleFactors[0];
+    mixed vscaleCOM = vscaleFactors[1];
+    mixed vscaleDrude = vscaleFactors[2];
     // Update normal particles.
     for (int i = blockIdx.x*blockDim.x+threadIdx.x; i < NUM_NORMAL_PARTICLES_NH; i += blockDim.x*gridDim.x) {
         int index = normalParticles[i];

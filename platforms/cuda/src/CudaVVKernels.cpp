@@ -106,7 +106,7 @@ void CudaIntegrateMiddleStepKernel::initialize(const System& system, const VVInt
     if (force != NULL and integrator.getMaxDrudeDistance() > 0)
         kernelDrudeHardwall = cu.getKernel(module, "applyHardWallConstraints");
 
-    cout << "CUDA modules for velocityVerlet-middle integrator are created\n"
+    cout << "CUDA modules for velocity-Verlet-middle integrator are created\n"
          << "    NUM_ATOMS: " << numAtoms << ", PADDED_NUM_ATOMS: " << cu.getPaddedNumAtoms() << "\n"
          << "    Num Drude pairs: " << drudePairsVec.size() << ", Drude hardwall distance: " << integrator.getMaxDrudeDistance() << " nm\n"
          << "    Num thread blocks: " << cu.getNumThreadBlocks() << ", Thread block size: " << cu.ThreadBlockSize << "\n" << flush;
@@ -599,19 +599,23 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
     particleMolId = CudaArray::create<int>(cu, (int) particleMolIdVec.size(), "particleMolId");
     particlesInMolecules = CudaArray::create<int2>(cu, (int) particlesInMoleculesVec.size(), "particlesInMolecules");
     particlesSortedByMolId = CudaArray::create<int>(cu, (int) particlesSortedByMolIdVec.size(), "particlesSortedByMolId");
-    kineticEnergyBufferNH = CudaArray::create<double>(cu, (int) particlesNHVec.size() * numTempGroup, "kineticEnergyBufferNH");
-    kineticEnergiesNH = CudaArray::create<double>(cu, numTempGroup, "kineticEnergiesNH");
-    vscaleFactorsNH = CudaArray::create<double>(cu, numTempGroup, "vscaleFactorsNH");
 
+    // init comVelm with 0 in case COM temperature group is not requested
     if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision()) {
         comVelm = CudaArray::create<double4>(cu, integrator.getNumMolecules(), "comVelm");
         auto vec = std::vector<double4>(integrator.getNumMolecules(), make_double4(0, 0, 0, 0));
         comVelm->upload(vec);
+        kineticEnergyBufferNH = CudaArray::create<double>(cu, (int) particlesNHVec.size() * numTempGroup, "kineticEnergyBufferNH");
+        kineticEnergiesNH = CudaArray::create<double>(cu, numTempGroup, "kineticEnergiesNH");
+        vscaleFactorsNH = CudaArray::create<double>(cu, numTempGroup, "vscaleFactorsNH");
     }
     else {
         comVelm = CudaArray::create<float4>(cu, integrator.getNumMolecules(), "comVelm");
         auto vec = std::vector<float4>(integrator.getNumMolecules(), make_float4(0, 0, 0, 0));
         comVelm->upload(vec);
+        kineticEnergyBufferNH = CudaArray::create<float>(cu, (int) particlesNHVec.size() * numTempGroup, "kineticEnergyBufferNH");
+        kineticEnergiesNH = CudaArray::create<float>(cu, numTempGroup, "kineticEnergiesNH");
+        vscaleFactorsNH = CudaArray::create<float>(cu, numTempGroup, "vscaleFactorsNH");
     }
 
     if (!particlesNHVec.empty())
@@ -701,7 +705,13 @@ void CudaModifyDrudeNoseKernel::scaleVelocity(ContextImpl& context, const VVInte
                      workGroupSize * numTempGroup * kineticEnergyBufferNH->getElementSize());
 
     kineticEnergiesNHVec = std::vector<double>(numTempGroup);
-    kineticEnergiesNH->download(kineticEnergiesNHVec);
+    if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision()) {
+        kineticEnergiesNH->download(kineticEnergiesNHVec);
+    } else {
+        auto vecFloat = std::vector<float>(numTempGroup);
+        kineticEnergiesNH->download(vecFloat);
+        kineticEnergiesNHVec = std::vector<double>(vecFloat.begin(), vecFloat.end());
+    }
 
 //    std::cout << cu.getStepCount() << " NH group kinetic energies: ";
 //    for (auto ke: kineticEnergiesNHVec) {
@@ -726,7 +736,12 @@ void CudaModifyDrudeNoseKernel::scaleVelocity(ContextImpl& context, const VVInte
 //    }
 //    std::cout<< "\n";
 
-    vscaleFactorsNH->upload(vscaleFactorsNHVec);
+    if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision()) {
+        vscaleFactorsNH->upload(vscaleFactorsNHVec);
+    } else {
+        auto vecFloat = std::vector<float>(vscaleFactorsNHVec.begin(), vscaleFactorsNHVec.end());
+        vscaleFactorsNH->upload(vecFloat);
+    }
     void *argsChain[] = {&cu.getVelm().getDevicePointer(),
                          &comVelm->getDevicePointer(),
                          &particleMolId->getDevicePointer(),
@@ -959,24 +974,19 @@ void CudaModifyElectricFieldKernel::applyElectricForce(ContextImpl& context, con
     cu.setAsCurrent();
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
 
-    double efield = integrator.getElectricField(); // kJ/nm.e
-    double fscale = AVOGADRO;  // convert from kJ/nm.e to kJ/mol.nm.e
-    float efieldFloat = (float) efield;
-    float fscaleFloat = (float) fscale;
-    void *efieldPtr, *fscalePtr;
-    if (cu.getUseDoublePrecision() || cu.getUseMixedPrecision()) {
-        efieldPtr = &efield;
-        fscalePtr = &fscale;
+    double efscale = integrator.getElectricField() * AVOGADRO;  // convert from kJ/nm.e to kJ/mol.nm.e
+    float efscaleFloat = (float) efscale;
+    void *efscalePtr;
+    if (cu.getUseDoublePrecision()) {
+        efscalePtr = &efscale;
     } else {
-        efieldPtr = &efieldFloat;
-        fscalePtr = &fscaleFloat;
+        efscalePtr = &efscaleFloat;
     }
 
     void *args1[] = {&cu.getPosq().getDevicePointer(),
                      &forceExtra->getDevicePointer(),
                      &particlesElectrolyte->getDevicePointer(),
-                     efieldPtr,
-                     fscalePtr};
+                     efscalePtr};
     cu.executeKernel(kernelApplyElectricForce, args1, particlesElectrolyte->getSize());
 }
 
