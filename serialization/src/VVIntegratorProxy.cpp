@@ -52,6 +52,7 @@ void VVIntegratorProxy::serialize(const void* object, SerializationNode& node) c
     node.setIntProperty("loopsPerStep", integrator.getLoopsPerStep());
 
     node.setBoolProperty("useCOMTempGroup", integrator.getUseCOMTempGroup());
+    node.setBoolProperty("useMiddleScheme", integrator.getUseMiddleScheme());
     node.setDoubleProperty("constraintTolerance", integrator.getConstraintTolerance());
     node.setDoubleProperty("maxDrudeDistance", integrator.getMaxDrudeDistance());
 
@@ -74,6 +75,7 @@ void* VVIntegratorProxy::deserialize(const SerializationNode& node) const {
             node.getIntProperty("numNHChains"),
             node.getIntProperty("loopsPerStep"));
     integrator->setUseCOMTempGroup(node.getBoolProperty("useCOMTempGroup"));
+    integrator->setUseMiddleScheme(node.getBoolProperty("useMiddleScheme"));
     integrator->setConstraintTolerance(node.getDoubleProperty("constraintTolerance"));
     integrator->setMaxDrudeDistance(node.getDoubleProperty("maxDrudeDistance"));
 

@@ -64,7 +64,7 @@ void testSerialization() {
     ASSERT_EQUAL(integ1.getNumNHChains(), integ2.getNumNHChains());
     ASSERT_EQUAL(integ1.getLoopsPerStep(), integ2.getLoopsPerStep());
     ASSERT_EQUAL(integ1.getUseCOMTempGroup(), integ2.getUseCOMTempGroup());
-
+    ASSERT_EQUAL(integ1.getUseMiddleScheme(), integ2.getUseMiddleScheme());
     ASSERT_EQUAL(integ1.getConstraintTolerance(), integ2.getConstraintTolerance());
     ASSERT_EQUAL(integ1.getMaxDrudeDistance(), integ2.getMaxDrudeDistance());
 
