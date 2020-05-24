@@ -1,20 +1,22 @@
 # openmm-velocityVerlet
 Lammps style velocity-Verlet integrator and modifiers plugin for OpenMM
 
-This plugin enables OpenMM to perform velocity-Verlet integration,
-along with a series of simulation methods that can not be done with `CustomIntegrator`.
+This plugin works with OpenMM to perform velocity-Verlet integration,
+along with a series of simulation methods that can not be done easily with `CustomIntegrator`.
 
 Currently, this plugin enables
-- Temperature-grouped Nose-Hoover (TGNH) thermostat (for both non-polarizable and Drude polarizable model)
-- Langevin thermostat (for both non-polarizable and Drude polarizable model)
+- Nose-Hoover thermostat
+- Temperature-grouped Nose-Hoover thermostat for Drude polarizable model
+- Langevin thermostat for both non-polarizable and Drude polarizable model
 - Periodic perturbation method for viscosity calculation
 - Image charge method for constant voltage simulation
 - External electric field
+- Middle discretization scheme
 
-### Temperature-grouped Nose-Hoover thermostat
-The TGNH thermostat in this plugin is essentially copied from
-[scychon's openmm_drudeNose](https://github.com/scychon/openmm_drudeNose) with some bug fixes.
-This thermostat is especially suitable for Drude model where dynamic properties are desired.
+### Nose-Hoover thermostat
+The temperature-grouped Nose-Hoover (TGNH) thermostat in this plugin is borrowed from
+[scychon's openmm_drudeNose](https://github.com/scychon/openmm_drudeNose).
+TGNH is suitable for Drude model where dynamic properties are desired.
 The naive dual-Nose-Hoover thermostat for Drude model displays serious thermo-equipartition problem,
 resulting in ridiculously high molecular translational temperature.
 One should **NEVER** use the naive dual-Nose-Hoover thermostat for Drude model because it's simply **WRONG**.
@@ -36,7 +38,7 @@ OpenMM natively supports Langevin thermostat.
 However, one cannot apply several thermostats in one simulation,
 which is not ideal for very heterogeneous system.
 For example, one want to simulate solid-liquid interface,
-this plugin can apply TGNH thermostat on liquid molecules,
+this plugin can apply Nose-Hoover thermostat on liquid molecules,
 whereas Langevin thermostat on solid particles.
 
 #### usage
@@ -103,6 +105,22 @@ integrator = VVIntegrator(300 * K, 10 / ps, 1 * K, 40 / ps, 0.001 * ps)
 for i in electrolytes:
     integrator.addParticleElectrolyte(i)
 integrator.setElectricField(1.0 * volt/nm)
+...
+```
+
+### Middle discretization scheme
+Use middle scheme to integrate the position and momentum of particles.
+With vanilla velocity-Verlet integrator, two Nose-Hoover coupling is required per step.
+With middle discretization scheme, only one NH coupling is required at each step.
+Therefore, it is around 20 % faster.
+
+####
+```python
+from velocityverletplugin import VVIntegrator
+from simtk.unit import kelvin as K, picosecond as ps
+...
+integrator = VVIntegrator(300 * K, 10 / ps, 1 * K, 40 / ps, 0.001 * ps)
+integrator.setUseMiddleScheme(True)
 ...
 ```
 
