@@ -1,6 +1,6 @@
 
 /**
- * Perform the velocity update of half step velocity verlet.
+ * Half step velocity update
  */
 
 extern "C" __global__ void velocityVerletIntegrateVelocities(mixed4 *__restrict__ velm,
@@ -29,7 +29,7 @@ extern "C" __global__ void velocityVerletIntegrateVelocities(mixed4 *__restrict_
 }
 
 /**
- * Perform the position update.
+ * Full step position update
  */
 
 extern "C" __global__ void velocityVerletIntegratePositions(real4 *__restrict__ posq,

@@ -1,6 +1,3 @@
-/**
- * Perform the first step of Langevin integration.
- */
 
 extern "C" __global__ void updateImagePositions(real4 *__restrict__ posq,
                                                 real4 *__restrict__ posqCorrection,
@@ -25,7 +22,7 @@ extern "C" __global__ void updateImagePositions(real4 *__restrict__ posq,
         posq[index_img].z = (real) z;
         posqCorrection[index_img].z = (real) (z - (real) z);
 #else
-        posq[index_img].z = 2 * mirror - pos.z;
+        posq[index_img].z = 2 * mirror - posq[index_par].z;
 #endif
     }
 }

@@ -69,8 +69,8 @@ from velocityverletplugin import VVIntegrator
 from simtk.unit import kelvin as K, picosecond as ps
 ...
 # Integrate the system with velocity-Verlet algorithm at time step of 0.001 ps.
-# The system will be thermolized at 300 K with collision frequency of 10 / ps.
-# If there are Drude particles, the Drude relative motions will be thermostated at 1 K with collion frequency of 40 / ps.
+# The system will be thermolized at 300 K with collision frequency of 10 /ps.
+# If there are Drude particles, the Drude relative motions will be thermostated at 1 K with collion frequency of 40 /ps.
 integrator = VVIntegrator(300 * K, 10 / ps, 1 * K, 40 / ps, 0.001 * ps)
 ...
 ```
