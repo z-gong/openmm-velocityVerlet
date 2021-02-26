@@ -47,8 +47,6 @@ selected Unix Makefiles, type `make install`.
 Usage
 =====
 
-In order to use this plugin correctly, the user should know about how the OpenMM Python API works.
-
 ### Nose-Hoover and temperature-grouped Nose-Hoover thermostat
 NH thermostat is implemented in this plugin to enable accurate calculation of dynamic properties,
 like viscosity, diffusion coefficient, auto correlation function, etc...
@@ -200,6 +198,14 @@ integrator = VVIntegrator(300 * K, 10 / ps, 1 * K, 40 / ps, 0.001 * ps)
 integrator.setUseMiddleScheme(True)
 ...
 ```
+
+Examples and citation
+=====================
+
+Examples from the following work are provided in `examples` to demonstrate the usage of this plugin.
+Please cite this article if you find this plugin useful.
+
+[Gong, Z.; Padua, A. A. H. Effect of Side Chain Modifications in Imidazolium Ionic Liquids on the Properties of the Electrical Double Layer at a Molybdenum Disulfide Electrode. J. Chem. Phys. 2021.](https://doi.org/10.1063/5.0040172)
 
 
 License
