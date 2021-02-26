@@ -199,16 +199,12 @@ integrator.setUseMiddleScheme(True)
 ...
 ```
 
-Examples
-========
+Examples and citation
+=====================
 
-Examples from [this work](https://doi.org/10.1063/5.0040172) are provided to demonstrate the usage of this plugin.
+Examples from the following work are provided in `examples` to demonstrate the usage of this plugin.
+Please cite this article if you find this plugin useful.
 
-
-Citation
-========
-
-Please cite the following work if you find this plugin useful.
 [Gong, Z.; Padua, A. A. H. Effect of Side Chain Modifications in Imidazolium Ionic Liquids on the Properties of the Electrical Double Layer at a Molybdenum Disulfide Electrode. J. Chem. Phys. 2021.](https://doi.org/10.1063/5.0040172)
 
 
