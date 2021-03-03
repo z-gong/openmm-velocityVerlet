@@ -121,9 +121,9 @@ class OplsPsfFile(object):
     instead of the Lorentz-Bethot rule used by CHARMM.
     The improper terms will be added as cosine form instead of harmonic form used by CHARMM.
     Note that the definition of improper is different in CHARMM and OPLS.
-    For improper i-j-k-l, i is the central atom in CHARMM, while k is the central atom in OPLS.
-    Therefore, the PSF should be prepared in OPLS improper sequence
-    so that this parser can handle the impropers in OPLS form correctly.
+    For improper a1-a2-a3-a4 in PSF, a1 is the central atom.
+    With CHARMM convention, the value of improper is the angle between plane a1-a2-a3 and a2-a3-a4.
+    With OPLS convention, the value of improper is the angle between plane a2-a3-a1 and a3-a1-a4.
 
     This structure has numerous attributes that are lists of the elements of
     this structure, including atoms, bonds, torsions, etc. The attributes are
