@@ -19,7 +19,10 @@ extern "C" __global__ void calcPeriodicVelocityBias(const real4 *__restrict__ po
                                                     const real4 invBoxSize) {
 
     for (int index = blockIdx.x * blockDim.x + threadIdx.x; index < NUM_ATOMS; index += blockDim.x * gridDim.x) {
-        VBuffer[index] = RECIP(velm[index].w) * velm[index].x * 2 * cos(2 * 3.1415926 * posq[index].z * invBoxSize.z);
+        if (velm[index].w == 0)
+            VBuffer[index] = 0;
+        else
+            VBuffer[index] = RECIP(velm[index].w) * velm[index].x * 2 * cos(2 * 3.1415926 * posq[index].z * invBoxSize.z);
     }
 
 //    if (blockIdx.x * blockDim.x + threadIdx.x == 0) {
