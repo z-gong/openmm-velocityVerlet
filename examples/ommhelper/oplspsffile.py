@@ -937,7 +937,7 @@ class OplsPsfFile(object):
 
         # Set up the constraints
         def _is_bond_in_water(bond):
-            return bond.atom1.residue.resname in WATNAMES and \
+            return bond.atom1.residue.resname[:4] in WATNAMES and \
                    tuple(sorted([bond.atom1.type.atomic_number, bond.atom2.type.atomic_number])) == (1, 8)
 
         n_cons_bond = n_cons_angle = 0
@@ -1036,7 +1036,7 @@ class OplsPsfFile(object):
             if constraints is ff.HAngles:
                 constrained = (nh == 2 or (nh == 1 and a2 == 8))
             elif rigidWater:
-                constrained = (nh == 2 and a2 == 8 and angle.atom1.residue.resname in WATNAMES)
+                constrained = (nh == 2 and a2 == 8 and angle.atom1.residue.resname[:4] in WATNAMES)
             else:
                 constrained = False # no constraints
             if constrained:
