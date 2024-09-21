@@ -1,5 +1,5 @@
-import simtk.openmm as mm
-from simtk.openmm import app
+import openmm
+from openmm import openmm as mm, app
 from .grofile import GroFile
 from .unit import *
 
@@ -11,8 +11,8 @@ class CONST:
 
 
 def print_omm_info():
-    print(mm.__version__)
-    print(mm.version.openmm_library_path)
+    print(openmm.__version__)
+    print(openmm.version.openmm_library_path)
     print([mm.Platform.getPlatform(i).getName() for i in range(mm.Platform.getNumPlatforms())])
     print(mm.Platform.getPluginLoadFailures())
 

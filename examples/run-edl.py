@@ -3,10 +3,9 @@
 import argparse
 import sys
 import random
-import simtk.openmm as mm
-from simtk.openmm import app
-import ommhelper as oh
+from openmm import openmm as mm, app
 from ommhelper.unit import *
+import ommhelper as oh
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-n', '--nstep', type=int, default=int(1E6), help='number of steps')

@@ -1,4 +1,4 @@
-import simtk.openmm as mm
+from openmm import openmm as mm, unit
 from .util import CONST
 from .unit import *
 

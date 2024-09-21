@@ -1,6 +1,6 @@
 import sys
-from simtk.openmm.app.gromacsgrofile import GromacsGroFile
-from simtk.unit import nanometer, picosecond, norm, is_quantity
+from openmm.app.gromacsgrofile import GromacsGroFile
+from openmm.unit import nanometer, picosecond, norm, is_quantity
 
 
 class GroFile(GromacsGroFile):

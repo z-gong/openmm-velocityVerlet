@@ -38,20 +38,20 @@ from math import pi, cos, sin, sqrt
 import os
 import re
 import sys
-import simtk.openmm as mm
-from simtk.openmm.vec3 import Vec3
-import simtk.unit as u
-from simtk.openmm.app import (forcefield as ff, Topology, element)
-from simtk.openmm.app.amberprmtopfile import HCT, OBC1, OBC2, GBn, GBn2
-from simtk.openmm.app.internal.customgbforces import (GBSAHCTForce,
+import openmm.openmm as mm
+from openmm.vec3 import Vec3
+import openmm.unit as u
+from openmm.app import (forcefield as ff, Topology, element)
+from openmm.app.amberprmtopfile import HCT, OBC1, OBC2, GBn, GBn2
+from openmm.app.internal.customgbforces import (GBSAHCTForce,
                 GBSAOBC1Force, GBSAOBC2Force, GBSAGBnForce, GBSAGBn2Force)
-from simtk.openmm.app.internal.unitcell import computePeriodicBoxVectors
+from openmm.app.internal.unitcell import computePeriodicBoxVectors
 # CHARMM imports
-from simtk.openmm.app.internal.charmm.topologyobjects import (
+from openmm.app.internal.charmm.topologyobjects import (
                 ResidueList, AtomList, TrackedList, Bond, Angle, Dihedral,
                 Improper, AcceptorDonor, Group, Cmap, UreyBradley,
                 NoUreyBradley)
-from simtk.openmm.app.internal.charmm.exceptions import (
+from openmm.app.internal.charmm.exceptions import (
                 CharmmPSFError, MoleculeError, CharmmPSFWarning,
                 MissingParameter, CharmmPsfEOF)
 import warnings
@@ -616,7 +616,7 @@ class OplsPsfFile(object):
                     atype = parmset.atom_types_int[atom.attype]
                     types_are_int = True # if we have to change back
                 else:
-                    atype = parmset.atom_types_str[atom.attype]
+                    atype = parmset.atom_types_str[atom.attype.upper()]  # super ugly
             except KeyError:
                 raise MissingParameter('Could not find atom type for %s' %
                                        atom.attype)
@@ -627,8 +627,8 @@ class OplsPsfFile(object):
         # Next load all of the bonds
         for bond in self.bond_list:
             # Construct the key
-            key = (min(bond.atom1.attype, bond.atom2.attype),
-                   max(bond.atom1.attype, bond.atom2.attype))
+            key = (min(bond.atom1.attype.upper(), bond.atom2.attype.upper()),
+                   max(bond.atom1.attype.upper(), bond.atom2.attype.upper()))
             try:
                 bond.bond_type = parmset.bond_types[key]
             except KeyError:
@@ -638,8 +638,8 @@ class OplsPsfFile(object):
         self.urey_bradley_list = TrackedList()
         for ang in self.angle_list:
             # Construct the key
-            key = (min(ang.atom1.attype, ang.atom3.attype), ang.atom2.attype,
-                   max(ang.atom1.attype, ang.atom3.attype))
+            key = (min(ang.atom1.attype.upper(), ang.atom3.attype.upper()), ang.atom2.attype.upper(),
+                   max(ang.atom1.attype.upper(), ang.atom3.attype.upper()))
             try:
                 ang.angle_type = parmset.angle_types[key]
                 ubt = parmset.urey_bradley_types[key]
@@ -653,7 +653,7 @@ class OplsPsfFile(object):
         for dih in self.dihedral_list:
             # Store the atoms
             a1, a2, a3, a4 = dih.atom1, dih.atom2, dih.atom3, dih.atom4
-            at1, at2, at3, at4 = a1.attype, a2.attype, a3.attype, a4.attype
+            at1, at2, at3, at4 = a1.attype.upper(), a2.attype.upper(), a3.attype.upper(), a4.attype.upper()
             # First see if the exact dihedral is specified
             key = min((at1,at2,at3,at4), (at4,at3,at2,at1))
             if not key in parmset.dihedral_types:
@@ -676,8 +676,8 @@ class OplsPsfFile(object):
         for imp in self.improper_list:
             # Store the atoms
             a1, a2, a3, a4 = imp.atom1, imp.atom2, imp.atom3, imp.atom4
-            at1, at2, at3, at4 = a1.attype, a2.attype, a3.attype, a4.attype
-            key = tuple(sorted([at1, at2, at3, at4]))
+            at1, at2, at3, at4 = a1.attype.upper(), a2.attype.upper(), a3.attype.upper(), a4.attype.upper()
+            key = min((at1, at2, at3, at4), (at4, at3, at2, at1))
             if not key in parmset.improper_types:
                 # Check for wild-cards
                 for anchor in (at2, at3, at4):
@@ -698,8 +698,8 @@ class OplsPsfFile(object):
             else:
                 a1, a2, a3, a4 = cmap.atom1, cmap.atom2, cmap.atom3, cmap.atom4
                 a5, a6, a7, a8 = cmap.atom5, cmap.atom6, cmap.atom7, cmap.atom8
-            at1, at2, at3, at4 = a1.attype, a2.attype, a3.attype, a4.attype
-            at5, at6, at7, at8 = a5.attype, a6.attype, a7.attype, a8.attype
+            at1, at2, at3, at4 = a1.attype.upper(), a2.attype.upper(), a3.attype.upper(), a4.attype.upper()
+            at5, at6, at7, at8 = a5.attype.upper(), a6.attype.upper(), a7.attype.upper(), a8.attype.upper()
             # Construct the keys
             k1 = list(min((at1,at2,at3,at4), (at4,at3,at2,at1)))
             k2 = list(min((at5,at6,at7,at8), (at8,at7,at6,at5)))

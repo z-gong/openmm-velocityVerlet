@@ -48,10 +48,9 @@ try:
 except:
     have_gzip = False
 
-import simtk.openmm as mm
-import simtk.unit as unit
 import math
 import time
+from openmm import openmm as mm, unit
 
 
 class StateDataReporter(object):
