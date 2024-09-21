@@ -1,6 +1,5 @@
 import numpy as np
-import simtk.openmm as mm
-from simtk.openmm.app import Simulation
+from openmm import openmm as mm, unit, app
 from ..unit import *
 
 class DrudeTemperatureReporter(object):
@@ -34,7 +33,7 @@ class DrudeTemperatureReporter(object):
 
         Parameters
         ----------
-        simulation : Simulation
+        simulation : app.Simulation
             The Simulation to generate a report for
 
         Returns
@@ -54,7 +53,7 @@ class DrudeTemperatureReporter(object):
 
         Parameters
         ----------
-        simulation : Simulation
+        simulation : app.Simulation
             The Simulation to generate a report for
         state : State
             The current state of the simulation

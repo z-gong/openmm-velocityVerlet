@@ -33,6 +33,7 @@
 #include "CudaVVKernelSources.h"
 #include "openmm/internal/ContextImpl.h"
 #include "openmm/CMMotionRemover.h"
+#include "openmm/common/ContextSelector.h"
 #include "CudaBondedUtilities.h"
 #include "CudaForceInfo.h"
 #include "CudaIntegrationUtilities.h"
@@ -56,6 +57,7 @@ void CudaIntegrateMiddleStepKernel::initialize(const System& system, const VVInt
     if (integrator.getDebugEnabled())
         cout << "Initializing CudaVVIntegrator-Middle...\n" << flush;
 
+    ContextSelector selector(cu);
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
     integration.initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
@@ -106,7 +108,7 @@ void CudaIntegrateMiddleStepKernel::initialize(const System& system, const VVInt
     if (force != NULL and integrator.getMaxDrudeDistance() > 0)
         kernelDrudeHardwall = cu.getKernel(module, "applyHardWallConstraints");
 
-    cout << "CUDA modules for velocity-Verlet-middle integrator are created\n"
+    cerr << "CUDA modules for velocity-Verlet-middle integrator created\n"
          << "    NUM_ATOMS: " << numAtoms << ", PADDED_NUM_ATOMS: " << cu.getPaddedNumAtoms() << "\n"
          << "    Num Drude pairs: " << drudePairsVec.size() << ", Drude hardwall distance: " << integrator.getMaxDrudeDistance() << " nm\n"
          << "    Num thread blocks: " << cu.getNumThreadBlocks() << ", Thread block size: " << cu.ThreadBlockSize << "\n" << flush;
@@ -241,6 +243,7 @@ void CudaIntegrateVVStepKernel::initialize(const System& system, const VVIntegra
     if (integrator.getDebugEnabled())
         cout << "Initializing CudaVVIntegrator...\n" << flush;
 
+    ContextSelector selector(cu);
     cu.getPlatformData().initializeContexts(system);
     CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
     integration.initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
@@ -282,7 +285,7 @@ void CudaIntegrateVVStepKernel::initialize(const System& system, const VVIntegra
     if (force != NULL and integrator.getMaxDrudeDistance() > 0)
         kernelDrudeHardwall = cu.getKernel(module, "applyHardWallConstraints");
 
-    cout << "CUDA modules for velocity-Verlet integrator are created\n"
+    cerr << "CUDA modules for velocity-Verlet integrator created\n"
          << "    NUM_ATOMS: " << numAtoms << ", PADDED_NUM_ATOMS: " << cu.getPaddedNumAtoms() << "\n"
          << "    Num Drude pairs: " << drudePairsVec.size() << ", Drude hardwall distance: " << integrator.getMaxDrudeDistance() << " nm\n"
          << "    Num thread blocks: " << cu.getNumThreadBlocks() << ", Thread block size: " << cu.ThreadBlockSize << "\n" << flush;
@@ -460,8 +463,7 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
     if (integrator.getDebugEnabled())
         cout << "Initializing CudaModifyDrudeNoseKernel...\n" << flush;
 
-    CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
-
+    ContextSelector selector(cu);
     numAtoms = cu.getNumAtoms();
     particlesNHVec = integrator.getParticlesNH();
     moleculesNHVec = integrator.getMoleculesNH();
@@ -651,7 +653,7 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
     kernelKESum = cu.getKernel(module, "sumNormalizedKineticEnergies");
     kernelScale = cu.getKernel(module, "scaleVelocity");
 
-    cout << "CUDA modules for Nose-Hoover thermostat are created\n"
+    cerr << "CUDA modules for Nose-Hoover thermostat created\n"
          << "    Num molecules in NH thermostat: " << moleculesNHVec.size() << " / " << integrator.getNumMolecules() << "\n"
          << "    Num normal particles: " << normalParticlesNHVec.size() << ", Num Drude pairs: " << pairParticlesNHVec.size() << "\n"
          << "    Real T: " << integrator.getTemperature() << " K, Drude T: " << integrator.getDrudeTemperature() << " K\n"
@@ -659,9 +661,9 @@ void CudaModifyDrudeNoseKernel::initialize(const System &system, const VVIntegra
          << "    Num NH chain: " << integrator.getNumNHChains() << ", Loops per NH step: " << integrator.getLoopsPerStep() << "\n"
          << "    Use COM temperature group: " << integrator.getUseCOMTempGroup() << "\n";
     for (int i = 0; i < numTempGroup; i++) {
-        cout << "    DOF[" << i << "]: " << tempGroupDof[i] << ", NkbT[" << i << "]: " << tempGroupNkbT[i] << ", etaMass[" << i << "]: " << etaMass[i][0] << "\n";
+        cerr << "    DOF[" << i << "]: " << tempGroupDof[i] << ", NkbT[" << i << "]: " << tempGroupNkbT[i] << ", etaMass[" << i << "]: " << etaMass[i][0] << "\n";
     }
-    cout << flush;
+    cerr << flush;
 }
 
 
@@ -760,6 +762,7 @@ void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVInt
     if (integrator.getDebugEnabled())
         cout << "Initializing CudaModifyDrudeLangevinKernel...\n" << flush;
 
+    ContextSelector selector(cu);
     if (integrator.getUseMiddleScheme()){
         CudaIntegrateMiddleStepKernel* stepKernel = &vvKernel.getAs<CudaIntegrateMiddleStepKernel>();
         forceExtra = stepKernel->getForceExtra();
@@ -768,8 +771,6 @@ void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVInt
         CudaIntegrateVVStepKernel* stepKernel = &vvKernel.getAs<CudaIntegrateVVStepKernel>();
         forceExtra = stepKernel->getForceExtra();
     }
-    CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
-    cu.getIntegrationUtilities().initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
 
     set<int> particlesLDSet;
     for (int i = 0; i < system.getNumParticles(); i++) {
@@ -816,7 +817,7 @@ void CudaModifyDrudeLangevinKernel::initialize(const System &system, const VVInt
     CUmodule module = cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::drudeLangevin, defines, "");
     kernelApplyLangevin = cu.getKernel(module, "addExtraForceDrudeLangevin");
 
-    cout << "CUDA modules for DrudeLangevinModifier are created\n"
+    cerr << "CUDA modules for DrudeLangevinModifier created\n"
          << "    Num normal particles: " << normalParticlesLDVec.size() << ", Num Drude pairs: " << pairParticlesLDVec.size() << "\n"
          << "    Real T: " << integrator.getTemperature() << " K, Drude T: " << integrator.getDrudeTemperature() << " K\n"
          << "    Real friction: " << integrator.getFriction() << " /ps, Drude friction: " << integrator.getDrudeFriction() << " /ps\n" << flush;
@@ -878,8 +879,9 @@ void CudaModifyImageChargeKernel::initialize(const System& system, const VVInteg
     if (integrator.getDebugEnabled())
         cout << "Initializing CudaModifyImageChargeKernel...\n" << flush;
 
-    // Identify particle pairs and ordinary particles.
+    ContextSelector selector(cu);
 
+    // Identify particle pairs and ordinary particles.
     auto imagePairsVec = std::vector<int2>(0);
     for (auto pair: integrator.getImagePairs())
         imagePairsVec.push_back(make_int2(pair.first, pair.second));
@@ -894,7 +896,7 @@ void CudaModifyImageChargeKernel::initialize(const System& system, const VVInteg
     CUmodule module = cu.createModule(CudaVVKernelSources::vectorOps+CudaVVKernelSources::imageCharge, defines, "");
     kernelImage = cu.getKernel(module, "updateImagePositions");
 
-    cout << "CUDA modules for ImageChargeModifier are created\n"
+    cerr << "CUDA modules for ImageChargeModifier are created\n"
          << "    Num image pairs: " << imagePairsVec.size() << "\n"
          << "    Mirror location (z): " << integrator.getMirrorLocation() << " nm\n" << flush;
 }
@@ -939,6 +941,7 @@ void CudaModifyElectricFieldKernel::initialize(const System &system, const VVInt
     if (integrator.getDebugEnabled())
         cout << "Initializing CudaModifyElectricFieldKernel...\n" << flush;
 
+    ContextSelector selector(cu);
     if (integrator.getUseMiddleScheme()){
         CudaIntegrateMiddleStepKernel* stepKernel = &vvKernel.getAs<CudaIntegrateMiddleStepKernel>();
         forceExtra = stepKernel->getForceExtra();
@@ -947,8 +950,6 @@ void CudaModifyElectricFieldKernel::initialize(const System &system, const VVInt
         CudaIntegrateVVStepKernel* stepKernel = &vvKernel.getAs<CudaIntegrateVVStepKernel>();
         forceExtra = stepKernel->getForceExtra();
     }
-    CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
-    cu.getIntegrationUtilities().initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
 
     const auto& particlesElectrolyteVec = integrator.getParticlesElectrolyte();
     particlesElectrolyte = CudaArray::create<int>(cu, max((int) particlesElectrolyteVec.size(), 1), "particlesElectrolyte");
@@ -962,7 +963,7 @@ void CudaModifyElectricFieldKernel::initialize(const System &system, const VVInt
     CUmodule module = cu.createModule(CudaVVKernelSources::vectorOps + CudaVVKernelSources::electricField, defines, "");
     kernelApplyElectricForce = cu.getKernel(module, "addExtraForceElectricField");
 
-    cout << "CUDA modules for ElectricFieldModifier are created\n"
+    cerr << "CUDA modules for ElectricFieldModifier created\n"
          << "    Num electrolyte particles: " << particlesElectrolyteVec.size() << "\n"
          << "    Electric field strength (z): " << integrator.getElectricField() * 6.241509629152651e21 << " V/nm\n" << flush;
 }
@@ -998,6 +999,7 @@ void CudaModifyCosineAccelerateKernel::initialize(const System &system, const VV
     if (integrator.getDebugEnabled())
         cout << "Initializing CosineAccelerateModifier...\n" << flush;
 
+    ContextSelector selector(cu);
     if (integrator.getUseMiddleScheme()){
         CudaIntegrateMiddleStepKernel* stepKernel = &vvKernel.getAs<CudaIntegrateMiddleStepKernel>();
         forceExtra = stepKernel->getForceExtra();
@@ -1006,8 +1008,6 @@ void CudaModifyCosineAccelerateKernel::initialize(const System &system, const VV
         CudaIntegrateVVStepKernel* stepKernel = &vvKernel.getAs<CudaIntegrateVVStepKernel>();
         forceExtra = stepKernel->getForceExtra();
     }
-    CudaIntegrationUtilities &integration = cu.getIntegrationUtilities();
-    cu.getIntegrationUtilities().initRandomNumberGenerator((unsigned int) integrator.getRandomNumberSeed());
 
     numAtoms = cu.getNumAtoms();
     map<string, string> defines;
@@ -1030,7 +1030,7 @@ void CudaModifyCosineAccelerateKernel::initialize(const System &system, const VV
         massTotal += system.getParticleMass(i);
     invMassTotal = 1.0 / massTotal;
 
-    cout << "CUDA modules for CosineAccelerateModifier are created\n"
+    cerr << "CUDA modules for CosineAccelerateModifier created\n"
          << "    Cosine acceleration strength: " << integrator.getCosAcceleration() << " nm/ps^2\n" << flush;
 }
 

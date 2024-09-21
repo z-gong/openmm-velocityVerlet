@@ -13,7 +13,7 @@ Currently, this plugin enables
 - External electric field
 - Middle discretization scheme
 
-### Note: This plugin works with OpenMM 7.4.2. Its compatibility with newer version of OpenMM is not tested.
+### Note: This plugin works with OpenMM 8.1.2. Its compatibility with newer version of OpenMM is not tested.
 
 Installation
 ============

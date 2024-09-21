@@ -1,5 +1,5 @@
 import os
-import simtk.openmm as mm
+import openmm.openmm as mm
 
 
 class CheckpointReporter():

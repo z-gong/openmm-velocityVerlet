@@ -1,6 +1,6 @@
 %module velocityverletplugin
 
-%import(module="simtk.openmm") "swig/OpenMMSwigHeaders.i"
+%import(module="openmm.openmm") "swig/OpenMMSwigHeaders.i"
 %include "swig/typemaps.i"
 
 /*
@@ -25,8 +25,8 @@ namespace std {
 %}
 
 %pythoncode %{
-import simtk.openmm as mm
-import simtk.unit as unit
+import openmm.openmm as mm
+import openmm.unit as unit
 %}
 
 /*

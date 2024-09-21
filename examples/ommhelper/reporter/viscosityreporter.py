@@ -1,4 +1,4 @@
-from simtk.openmm import app
+from openmm import app, unit
 from ..unit import *
 
 
