@@ -19,9 +19,9 @@ namespace std {
 #include "OpenMM.h"
 #include "OpenMMAmoeba.h"
 #include "OpenMMDrude.h"
-#include "OpenMMVelocityVerlet.h"
 #include "openmm/RPMDIntegrator.h"
 #include "openmm/RPMDMonteCarloBarostat.h"
+#include "openmm/VVIntegrator.h"
 %}
 
 %pythoncode %{
