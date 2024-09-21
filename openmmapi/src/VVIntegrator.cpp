@@ -62,7 +62,7 @@ VVIntegrator::VVIntegrator(double temperature, double frequency, double drudeTem
     setElectricField(0.0);
     setCosAcceleration(0.0);
     setUseCOMTempGroup(false);
-    setUseMiddleScheme(false);
+    setUseMiddleScheme(true);
     setDebugEnabled(false);
     autoSetCOMTempGroup = true;
     autoSetFriction = true;
