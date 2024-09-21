@@ -1,17 +1,10 @@
 #---------------------------------------------------
 # OpenMM Velocity Verlet Plugin
-#
-# Creates OpenMMVelocityVerlet plugin library.
-#
-# Windows:
-#   OpenMMVelocityVerlet.dll
-#   OpenMMVelocityVerlet.lib
-# Unix:
-#   libOpenMMVelocityVerlet.so
-#----------------------------------------------------
+#---------------------------------------------------
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
-project(OpenMM-VelocityVerlet)
+
+PROJECT(OpenMM-VelocityVerlet)
 
 # We need to know where OpenMM is installed so we can access the headers and libraries.
 SET(OPENMM_DIR "/usr/local/openmm" CACHE PATH "Where OpenMM is installed")
@@ -26,25 +19,6 @@ IF (APPLE)
     SET(CMAKE_INSTALL_NAME_DIR "@rpath")
     SET(EXTRA_COMPILE_FLAGS "-msse2 -stdlib=libc++")
 ENDIF (APPLE)
-
-# Set building flags
-IF (UNIX AND NOT CMAKE_BUILD_TYPE)
-    SET(CMAKE_BUILD_TYPE Release CACHE STRING "Debug or Release build" FORCE)
-ENDIF (UNIX AND NOT CMAKE_BUILD_TYPE)
-
-IF (NOT CMAKE_CXX_FLAGS_DEBUG)
-    SET(CMAKE_CXX_FLAGS_DEBUG "-g" CACHE STRING "To use when CMAKE_BUILD_TYPE=Debug" FORCE)
-ENDIF (NOT CMAKE_CXX_FLAGS_DEBUG)
-
-IF (NOT CMAKE_CXX_FLAGS_RELEASE)
-    IF (ANDROID)
-        SET(CMAKE_CXX_FLAGS_RELEASE "-mfloat-abi=softfp -march=armv7-a -mfpu=neon -funsafe-math-optimizations -O3 -DNDEBUG" CACHE STRING
-                "To use when CMAKE_BUILD_TYPE=Release" FORCE)
-    ELSE (ANDROID)
-        SET(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG" CACHE STRING
-                "To use when CMAKE_BUILD_TYPE=Release" FORCE)
-    ENDIF (ANDROID)
-ENDIF (NOT CMAKE_CXX_FLAGS_RELEASE)
 
 # Select where to install
 IF (${CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT})
@@ -100,8 +74,8 @@ INSTALL_TARGETS(/lib RUNTIME_DIRECTORY /lib ${SHARED_VELOCITYVERLET_TARGET})
 # install headers
 FILE(GLOB API_ONLY_INCLUDE_FILES "openmmapi/include/*.h")
 INSTALL(FILES ${API_ONLY_INCLUDE_FILES} DESTINATION include)
-FILE(GLOB API_ONLY_INCLUDE_FILES_INTERNAL "openmmapi/include/openmm/internal/*.h")
-INSTALL(FILES ${API_ONLY_INCLUDE_FILES_INTERNAL} DESTINATION include/internal)
+FILE(GLOB API_ONLY_INCLUDE_FILES_INTERNAL "openmmapi/include/openmm/*.h")
+INSTALL(FILES ${API_ONLY_INCLUDE_FILES_INTERNAL} DESTINATION include/openmm)
 
 # Enable testing
 

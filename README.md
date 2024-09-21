@@ -65,7 +65,7 @@ Otherwise, the NH thermostat will be applied.
 
 ```python
 from velocityverletplugin import VVIntegrator
-from simtk.unit import kelvin as K, picosecond as ps
+from openmm.unit import kelvin as K, picosecond as ps
 ...
 # Integrate the system with velocity-Verlet algorithm at time step of 0.001 ps.
 # The system will be thermolized at 300 K with collision frequency of 10 /ps.
@@ -96,7 +96,7 @@ the fraction can be set explicitly by calling `integrator.setFriction()` and `in
 
 ```python
 from velocityverletplugin import VVIntegrator
-from simtk.unit import kelvin as K, picosecond as ps
+from openmm.unit import kelvin as K, picosecond as ps
 ...
 integrator = VVIntegrator(300 * K, 10 / ps, 1 * K, 40 / ps, 0.001 * ps)
 # Thermolize selected particles with Langevin thermostat.
@@ -125,7 +125,7 @@ for more information.
 
 ```python
 from velocityverletplugin import VVIntegrator
-from simtk.unit import kelvin as K, picosecond as ps, nanosecond as ns
+from openmm.unit import kelvin as K, picosecond as ps, nanosecond as ns
 ...
 integrator = VVIntegrator(300 * K, 10 / ps, 1 * K, 40 / ps, 0.001 * ps)
 # Apply cosine-shaped acceleration to all particles in the system.
@@ -147,7 +147,7 @@ Refer to [this article](https://pubs.acs.org/doi/10.1021/acs.jpcc.9b06635) for m
 
 ```python
 from velocityverletplugin import VVIntegrator
-from simtk.unit import kelvin as K, picosecond as ps, nanosecond as ns
+from openmm.unit import kelvin as K, picosecond as ps, nanosecond as ns
 ...
 integrator = VVIntegrator(300 * K, 10 / ps, 1 * K, 40 / ps, 0.001 * ps)
 # Identify the pairs of image particles and real particles so that the positions of imamge particles can be updated.
@@ -165,7 +165,7 @@ Note that external electric field can also be applied by using `CustomExternalFo
 
 ```python
 from velocityverletplugin import VVIntegrator
-from simtk.unit import kelvin as K, picosecond as ps, nanosecond as ns, volt
+from openmm.unit import kelvin as K, picosecond as ps, nanosecond as ns, volt
 ...
 integrator = VVIntegrator(300 * K, 10 / ps, 1 * K, 40 / ps, 0.001 * ps)
 # Apply extral electric field to selected electrolyte particles.
@@ -193,7 +193,7 @@ If you prefer to use the original discretization scheme, it can be disabled by `
 
 ```python
 from velocityverletplugin import VVIntegrator
-from simtk.unit import kelvin as K, picosecond as ps
+from openmm.unit import kelvin as K, picosecond as ps
 ...
 integrator = VVIntegrator(300 * K, 10 / ps, 1 * K, 40 / ps, 0.001 * ps)
 integrator.setUseMiddleScheme(True)
