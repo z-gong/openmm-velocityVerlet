@@ -26,7 +26,7 @@ extension = Extension(name='_velocityverletplugin',
                      )
 
 setup(name='velocityverletplugin',
-      version='1.0',
+      version='1.1.0',
       py_modules=['velocityverletplugin'],
       ext_modules=[extension],
      )
