@@ -1,22 +1,33 @@
 velocity-Verlet plugin for OpenMM
 =================================
 
-This plugin works with OpenMM to perform velocity-Verlet integration,
-along with various simulation methods that can not be done easily with `CustomIntegrator`.
+This plugin works with OpenMM to perform velocity-Verlet integration, along with various simulation methods tailored for electrolytes.
 
-Currently, this plugin enables
-- Nose-Hoover (NH) thermostat
-- Temperature-grouped Nose-Hoover (TGNH) thermostat for Drude polarizable model
+Features
+========
+
+- Nose-Hoover (NH) thermostat for non-polarizable model and temperature-grouped Nose-Hoover (TGNH) thermostat for Drude polarizable model
 - Langevin thermostat for both non-polarizable and Drude polarizable model
 - Periodic perturbation method for viscosity calculation
 - Image charge method for constant voltage simulation
 - External electric field
 - Middle discretization scheme
 
-### Note: This plugin works with OpenMM 8.1.2. Its compatibility with newer version of OpenMM is not tested.
+### Notes
+
+- This plugin works with OpenMM 8.1.2. Its compatibility with newer version of OpenMM is not tested.
+- Only CUDA platform is implemented.
 
 Installation
 ============
+
+### Install with conda
+
+```
+conda install -c conda-forge -c z-gong openmm-velocityverlet
+```
+
+### Install from source code
 
 This project uses [CMake](http://www.cmake.org) for its build system.
 Currently, only CUDA platform is implemented. To build it, follow these steps:
